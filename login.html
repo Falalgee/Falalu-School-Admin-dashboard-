@@ -5,92 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login | Falalu Schools</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #060e1a;
             color: white;
-            font-family: 'Inter', sans-serif;
+            font-family: sans-serif;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             min-height: 100vh;
-            padding: 16px;
+            margin: 0;
         }
-        .login-card {
+        .card {
             background: #0a1628;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px;
-            padding: 32px;
-            width: 100%;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 90%;
             max-width: 400px;
             text-align: center;
         }
-        .login-card h1 { font-size: 24px; margin-bottom: 4px; }
-        .login-card p { color: #aaa; margin-bottom: 24px; }
-        label { display: block; text-align: left; font-size: 14px; color: #ccc; margin-bottom: 4px; }
-        input[type="email"],
-        input[type="password"] {
+        input {
             width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 1px solid #333;
+            border-radius: 0.5rem;
             background: #1e293b;
             color: white;
-            font-size: 16px;
-            margin-bottom: 16px;
-            outline: none;
         }
-        input::placeholder { color: #9ca3af; }
-        button[type="submit"] {
+        button {
             width: 100%;
-            padding: 12px;
+            padding: 0.75rem;
             background: #2563eb;
             border: none;
-            border-radius: 8px;
+            border-radius: 0.5rem;
             color: white;
-            font-size: 16px;
-            font-weight: 600;
+            font-weight: bold;
             cursor: pointer;
-            margin-top: 8px;
         }
-        .error {
-            color: #f87171;
-            font-size: 14px;
-            margin-top: 16px;
+        .msg {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
             display: none;
-            text-align: center;
-            background: rgba(248,113,113,0.1);
-            padding: 10px;
-            border-radius: 8px;
         }
-        .loading {
-            display: none;
-            margin-top: 16px;
-            color: #aaa;
-        }
+        .msg.error { background: rgba(255,0,0,0.2); color: #ff6666; }
+        .msg.success { background: rgba(0,255,0,0.2); color: #66ff66; }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="login-card">
-        <h1>Falalu Schools</h1>
-        <p>Admin Portal</p>
-
+    <div class="card">
+        <h2>Falalu Schools</h2>
+        <p>Admin Login</p>
         <form id="login-form">
-            <label for="email">Email address</label>
-            <input type="email" id="email" required placeholder="admin@school.com">
-
-            <label for="password">Password</label>
-            <input type="password" id="password" required placeholder="Enter your password">
-
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Password" required>
             <button type="submit">Sign In</button>
         </form>
-
-        <div class="error" id="error-message"></div>
-        <div class="loading" id="loading">Signing in…</div>
+        <div id="message" class="msg"></div>
     </div>
 
-    <!-- Supabase SDK -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
@@ -98,37 +71,35 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const form = document.getElementById('login-form');
-        const errorMsg = document.getElementById('error-message');
-        const loading = document.getElementById('loading');
+        const msgDiv = document.getElementById('message');
+
+        function showMessage(text, isError = true) {
+            msgDiv.textContent = text;
+            msgDiv.className = 'msg ' + (isError ? 'error' : 'success');
+            msgDiv.style.display = 'block';
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-
-            form.style.display = 'none';
-            loading.style.display = 'block';
-            errorMsg.style.display = 'none';
-
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            showMessage('Trying to log in...', false);
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
 
             if (error) {
-                // Show specific Supabase error message
-                let displayMessage = error.message;
-                if (error.message.includes('Email not confirmed')) {
-                    displayMessage = 'Your email is not confirmed. Please check your inbox or disable email confirmation in Supabase settings.';
-                } else if (error.message.includes('Invalid login credentials')) {
-                    displayMessage = 'Invalid email or password. Please try again.';
-                }
-
-                errorMsg.textContent = displayMessage;
-                errorMsg.style.display = 'block';
-                loading.style.display = 'none';
-                form.style.display = 'block';
+                showMessage('Login failed: ' + error.message, true);
+            } else if (data && data.user) {
+                showMessage('Login successful! Redirecting...', false);
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
             } else {
-                // Successful login
-                window.location.href = 'index.html';
+                showMessage('Login failed: unexpected response', true);
             }
         });
     </script>
