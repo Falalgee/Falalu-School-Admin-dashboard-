@@ -56,7 +56,7 @@
 <body>
     <div class="card">
         <h2>Falalu Schools</h2>
-        <p>Admin Login</p>
+        <p>Admin Portal</p>
         <form id="login-form">
             <input type="email" id="email" placeholder="Email" required>
             <input type="password" id="password" placeholder="Password" required>
@@ -66,7 +66,6 @@
     </div>
 
     <script>
-        // Your Supabase project details
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
 
@@ -79,19 +78,18 @@
             msgDiv.style.display = 'block';
         }
 
-        // Show "JavaScript is running" immediately
         showMessage('Page ready. Please login.', false);
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            showMessage('Attempting login...', false);
+            showMessage('Signing in...', false);
 
             try {
-                const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+                // 1. Authenticate
+                const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -100,20 +98,42 @@
                     body: JSON.stringify({ email, password }),
                 });
 
-                const data = await response.json();
+                const authData = await authRes.json();
 
-                if (response.ok && data.access_token) {
-                    // Save token for later use (dashboard)
-                    localStorage.setItem('supabase_token', data.access_token);
-                    showMessage('Login successful! Redirecting...', false);
-                    setTimeout(() => {
-                        window.location.href = 'index.html';
-                    }, 1000);
-                } else {
-                    // Error message from Supabase
-                    const errorMsg = data.error_description || data.msg || 'Invalid credentials';
+                if (!authRes.ok || !authData.access_token) {
+                    const errorMsg = authData.error_description || authData.msg || 'Invalid credentials';
                     showMessage('Login failed: ' + errorMsg, true);
+                    return;
                 }
+
+                const token = authData.access_token;
+                localStorage.setItem('supabase_token', token);
+
+                // 2. Get user ID from token (decode JWT)
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const userId = payload.sub;
+
+                // 3. Fetch user profile with role
+                const profileRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
+                    headers: {
+                        'apikey': ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                const profiles = await profileRes.json();
+                const profile = profiles[0];
+
+                if (!profile) {
+                    showMessage('Your profile is not set up yet. Please contact admin.', true);
+                    localStorage.removeItem('supabase_token');
+                    return;
+                }
+
+                // 4. Redirect to dashboard (role will be used there)
+                showMessage('Login successful! Redirecting...', false);
+                setTimeout(() => {
+                    window.location.replace('index.html');
+                }, 800);
             } catch (err) {
                 showMessage('Network error: ' + err.message, true);
             }
