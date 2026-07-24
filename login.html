@@ -51,6 +51,7 @@
         .msg.error { background: rgba(255,0,0,0.2); color: #ff6666; }
         .msg.success { background: rgba(0,255,0,0.2); color: #66ff66; }
         .msg.info { background: rgba(37,99,235,0.2); color: #93c5fd; }
+        a { color: #93c5fd; }
     </style>
 </head>
 <body>
@@ -88,7 +89,6 @@
             showMessage('Signing in...', false);
 
             try {
-                // 1. Authenticate
                 const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
                     method: 'POST',
                     headers: {
@@ -109,31 +109,14 @@
                 const token = authData.access_token;
                 localStorage.setItem('supabase_token', token);
 
-                // 2. Get user ID from token (decode JWT)
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                const userId = payload.sub;
+                // Show success message with manual link
+                showMessage('Login successful!', false);
+                msgDiv.innerHTML += '<br><a href="index.html">Click here to open Dashboard</a>';
 
-                // 3. Fetch user profile with role
-                const profileRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
-                    headers: {
-                        'apikey': ANON_KEY,
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
-                const profiles = await profileRes.json();
-                const profile = profiles[0];
-
-                if (!profile) {
-                    showMessage('Your profile is not set up yet. Please contact admin.', true);
-                    localStorage.removeItem('supabase_token');
-                    return;
-                }
-
-                // 4. Redirect to dashboard (role will be used there)
-                showMessage('Login successful! Redirecting...', false);
+                // Also try automatic redirect after a short delay
                 setTimeout(() => {
-                    window.location.replace('index.html');
-                }, 800);
+                    window.location.href = 'index.html';
+                }, 1000);
             } catch (err) {
                 showMessage('Network error: ' + err.message, true);
             }
