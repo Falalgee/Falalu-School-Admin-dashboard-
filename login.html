@@ -51,7 +51,6 @@
         .msg.error { background: rgba(255,0,0,0.2); color: #ff6666; }
         .msg.success { background: rgba(0,255,0,0.2); color: #66ff66; }
         .msg.info { background: rgba(37,99,235,0.2); color: #93c5fd; }
-        a { color: #93c5fd; }
     </style>
 </head>
 <body>
@@ -107,16 +106,14 @@
                 }
 
                 const token = authData.access_token;
-                localStorage.setItem('supabase_token', token);
+                // Decode the token to get user ID
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const userId = payload.sub;
 
-                // Show success message with manual link
-                showMessage('Login successful!', false);
-                msgDiv.innerHTML += '<br><a href="index.html">Click here to open Dashboard</a>';
-
-                // Also try automatic redirect after a short delay
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
+                // Redirect with token and userId as query parameters
+                const dashboardUrl = `index.html?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
+                showMessage('Login successful! Opening dashboard...', false);
+                window.location.href = dashboardUrl;
             } catch (err) {
                 showMessage('Network error: ' + err.message, true);
             }
