@@ -38,7 +38,7 @@
 </head>
 <body class="bg-brand-950 text-white font-body antialiased">
 
-    <div id="status-bar">⏳ Ready</div>
+    <div id="status-bar">⏳ Initializing...</div>
 
     <!-- Sidebar overlay -->
     <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/50 z-20" onclick="closeSidebar()"></div>
@@ -96,7 +96,6 @@
         </main>
     </div>
 
-    <!-- No external Supabase SDK – we use our own fetch wrapper -->
     <script>
         const statusEl = document.getElementById('status-bar');
         function log(msg) {
@@ -106,9 +105,21 @@
 
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
-        let authToken = localStorage.getItem('supabase_token') || '';
 
-        // Helper to make authenticated requests
+        // Extract token and userId from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const userId = urlParams.get('userId');
+
+        if (!token || !userId) {
+            log('Missing token or userId. Redirecting to login.');
+            window.location.replace('login.html');
+        }
+
+        // Store in memory (not localStorage)
+        const authToken = token;
+        const currentUserId = userId;
+
         async function supabaseFetch(path, options = {}) {
             const url = `${SUPABASE_URL}/rest/v1/${path}`;
             const headers = {
@@ -122,45 +133,42 @@
                 const err = await res.json().catch(() => ({ message: res.statusText }));
                 throw new Error(err.message || `Request failed with status ${res.status}`);
             }
-            // For HEAD requests or 204, return null
             if (res.status === 204 || options.method === 'HEAD') return null;
             return res.json();
         }
 
-        // Check authentication on page load
-        async function checkAuth() {
-            if (!authToken) {
-                log('No token, redirecting to login...');
-                window.location.href = 'login.html';
-                return;
-            }
+        async function init() {
+            log('Fetching profile...');
             try {
-                // Verify token by fetching user
-                const { data: { user } } = await supabase.auth.getUser(); // fallback to SDK if available, but we use token
-                // We'll just assume token is valid; if requests fail later, we redirect
-                log('Authenticated');
-                // Load user profile
-                const profiles = await supabaseFetch('profiles?select=*&id=eq.' + getUserIdFromToken());
+                const profiles = await supabaseFetch(`profiles?id=eq.${currentUserId}&select=*`);
                 const profile = profiles[0];
-                const name = profile?.full_name || 'Admin';
+
+                if (!profile) {
+                    document.getElementById('main-content').innerHTML = `
+                        <div class="text-center text-red-400 p-4">
+                            <p class="font-bold">Profile not found</p>
+                            <p>Your user ID: ${currentUserId}</p>
+                            <p>Please run the SQL to add your profile.</p>
+                            <p><a href="login.html" class="text-accent-400 underline">Back to login</a></p>
+                        </div>`;
+                    log('Profile missing');
+                    return;
+                }
+
+                const name = profile.full_name || 'Admin';
                 document.getElementById('user-name').textContent = name;
                 document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
                 document.getElementById('header-user').textContent = name;
+                log(`Welcome ${name} (${profile.role})`);
                 loadModule('dashboard');
             } catch (e) {
-                log('Auth check failed: ' + e.message);
-                localStorage.removeItem('supabase_token');
-                window.location.href = 'login.html';
-            }
-        }
-
-        // Simple JWT decode to get user ID (needed for profile query)
-        function getUserIdFromToken() {
-            try {
-                const payload = JSON.parse(atob(authToken.split('.')[1]));
-                return payload.sub;
-            } catch (e) {
-                return '';
+                log('Error: ' + e.message);
+                document.getElementById('main-content').innerHTML = `
+                    <div class="text-center text-red-400 p-4">
+                        <p class="font-bold">Error loading profile</p>
+                        <p>${e.message}</p>
+                        <p><a href="login.html" class="text-accent-400 underline">Back to login</a></p>
+                    </div>`;
             }
         }
 
@@ -173,7 +181,7 @@
         }
 
         async function loadModule(module) {
-            log('Loading module: ' + module);
+            log('Loading: ' + module);
             const titles = {
                 dashboard: 'Dashboard Overview',
                 students: 'Student Management',
@@ -187,196 +195,187 @@
             moduleTitle.textContent = titles[module] || module;
             mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">Loading ${titles[module]}...</div>`;
 
-            if (module === 'dashboard') {
-                await renderDashboard();
-            } else if (module === 'students') {
-                await renderStudents();
-            } else {
-                mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
+            try {
+                if (module === 'dashboard') {
+                    await renderDashboard();
+                } else if (module === 'students') {
+                    await renderStudents();
+                } else {
+                    mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
+                }
+            } catch (e) {
+                showError('Failed to load module: ' + e.message);
             }
 
             if (window.innerWidth < 1024) closeSidebar();
         }
 
-        // --- Dashboard ---
         async function renderDashboard() {
-            try {
-                const [students, teachers, classes, notices] = await Promise.all([
-                    supabaseFetch('students?select=id&limit=0', { method: 'HEAD' }).then(res => {
-                        const count = res ? parseInt(res.headers.get('content-range')?.split('/')[1]) : 0;
-                        return isNaN(count) ? 0 : count;
-                    }).catch(() => 0),
-                    supabaseFetch('teachers?select=id&limit=0', { method: 'HEAD' }).then(res => {
-                        const count = res ? parseInt(res.headers.get('content-range')?.split('/')[1]) : 0;
-                        return isNaN(count) ? 0 : count;
-                    }).catch(() => 0),
-                    supabaseFetch('classes?select=id&limit=0', { method: 'HEAD' }).then(res => {
-                        const count = res ? parseInt(res.headers.get('content-range')?.split('/')[1]) : 0;
-                        return isNaN(count) ? 0 : count;
-                    }).catch(() => 0),
-                    supabaseFetch('notices?select=id&limit=0', { method: 'HEAD' }).then(res => {
-                        const count = res ? parseInt(res.headers.get('content-range')?.split('/')[1]) : 0;
-                        return isNaN(count) ? 0 : count;
-                    }).catch(() => 0),
-                ]);
-
-                log(`Data: ${students} students, ${teachers} teachers, ${classes} classes, ${notices} notices`);
-
-                mainContent.innerHTML = `
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                        <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
-                            <span class="material-symbols-outlined text-3xl text-accent-400">people</span>
-                            <h3 class="text-3xl font-bold mt-3">${students}</h3>
-                            <p class="text-sm text-gray-400">Students</p>
-                        </div>
-                        <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
-                            <span class="material-symbols-outlined text-3xl text-accent-400">school</span>
-                            <h3 class="text-3xl font-bold mt-3">${teachers}</h3>
-                            <p class="text-sm text-gray-400">Teachers</p>
-                        </div>
-                        <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
-                            <span class="material-symbols-outlined text-3xl text-accent-400">groups</span>
-                            <h3 class="text-3xl font-bold mt-3">${classes}</h3>
-                            <p class="text-sm text-gray-400">Classes</p>
-                        </div>
-                        <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
-                            <span class="material-symbols-outlined text-3xl text-accent-400">campaign</span>
-                            <h3 class="text-3xl font-bold mt-3">${notices}</h3>
-                            <p class="text-sm text-gray-400">Notices</p>
-                        </div>
-                    </div>
-                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5">
-                        <h2 class="text-xl font-semibold mb-4">Recent Notices</h2>
-                        <div id="recent-notices" class="space-y-3">Loading...</div>
-                    </div>
-                `;
-
-                const noticesData = await supabaseFetch('notices?select=*&order=created_at.desc&limit=5');
-                const container = document.getElementById('recent-notices');
-                if (noticesData && noticesData.length > 0) {
-                    container.innerHTML = noticesData.map(n => `
-                        <div class="p-4 bg-white/[0.03] rounded-xl border border-white/5">
-                            <h4 class="font-medium">${n.title}</h4>
-                            <p class="text-sm text-gray-400 mt-1">${n.content}</p>
-                            <span class="text-xs text-gray-500 mt-2 block">${new Date(n.created_at).toLocaleDateString()}</span>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = '<p class="text-sm text-gray-400 py-4">No notices yet.</p>';
+            const countQuery = async (table) => {
+                try {
+                    const res = await supabaseFetch(`${table}?select=id`);
+                    return Array.isArray(res) ? res.length : 0;
+                } catch (e) {
+                    return 0;
                 }
-            } catch (e) {
-                showError('Failed to load dashboard. ' + e.message);
+            };
+
+            const [students, teachers, classes, notices] = await Promise.all([
+                countQuery('students'),
+                countQuery('teachers'),
+                countQuery('classes'),
+                countQuery('notices')
+            ]);
+
+            log(`Data: ${students} students, ${teachers} teachers, ${classes} classes, ${notices} notices`);
+
+            mainContent.innerHTML = `
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
+                        <span class="material-symbols-outlined text-3xl text-accent-400">people</span>
+                        <h3 class="text-3xl font-bold mt-3">${students}</h3>
+                        <p class="text-sm text-gray-400">Students</p>
+                    </div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
+                        <span class="material-symbols-outlined text-3xl text-accent-400">school</span>
+                        <h3 class="text-3xl font-bold mt-3">${teachers}</h3>
+                        <p class="text-sm text-gray-400">Teachers</p>
+                    </div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
+                        <span class="material-symbols-outlined text-3xl text-accent-400">groups</span>
+                        <h3 class="text-3xl font-bold mt-3">${classes}</h3>
+                        <p class="text-sm text-gray-400">Classes</p>
+                    </div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center">
+                        <span class="material-symbols-outlined text-3xl text-accent-400">campaign</span>
+                        <h3 class="text-3xl font-bold mt-3">${notices}</h3>
+                        <p class="text-sm text-gray-400">Notices</p>
+                    </div>
+                </div>
+                <div class="bg-brand-900 rounded-2xl p-6 border border-white/5">
+                    <h2 class="text-xl font-semibold mb-4">Recent Notices</h2>
+                    <div id="recent-notices" class="space-y-3">Loading...</div>
+                </div>
+            `;
+
+            const noticesData = await supabaseFetch('notices?select=*&order=created_at.desc&limit=5').catch(() => []);
+            const container = document.getElementById('recent-notices');
+            if (noticesData && noticesData.length > 0) {
+                container.innerHTML = noticesData.map(n => `
+                    <div class="p-4 bg-white/[0.03] rounded-xl border border-white/5">
+                        <h4 class="font-medium">${n.title}</h4>
+                        <p class="text-sm text-gray-400 mt-1">${n.content}</p>
+                        <span class="text-xs text-gray-500 mt-2 block">${new Date(n.created_at).toLocaleDateString()}</span>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p class="text-sm text-gray-400 py-4">No notices yet.</p>';
             }
         }
 
-        // --- Students Module ---
         async function renderStudents() {
-            try {
-                const students = await supabaseFetch('students?select=*,classes(name)');
-                const classes = await supabaseFetch('classes?select=*');
+            const students = await supabaseFetch('students?select=*,classes(name)');
+            const classes = await supabaseFetch('classes?select=*');
 
-                mainContent.innerHTML = `
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                        <h2 class="text-xl font-semibold">All Students</h2>
-                        <button onclick="openStudentModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition">
-                            <span class="material-symbols-outlined text-lg">add</span> Add Student
-                        </button>
-                    </div>
-                    <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
-                        <table class="w-full min-w-[700px]">
-                            <thead>
-                                <tr class="border-b border-white/5">
-                                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
-                                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Class</th>
-                                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th>
-                                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Admission Date</th>
-                                    <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+            mainContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">All Students</h2>
+                    <button onclick="openStudentModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition">
+                        <span class="material-symbols-outlined text-lg">add</span> Add Student
+                    </button>
+                </div>
+                <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
+                    <table class="w-full min-w-[700px]">
+                        <thead>
+                            <tr class="border-b border-white/5">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Class</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Admission Date</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/5">
+                            ${students.map(s => `
+                                <tr class="hover:bg-white/[0.02]">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center text-accent-400 text-xs font-semibold">${s.first_name.charAt(0)}${s.last_name.charAt(0)}</div>
+                                            <span class="font-medium">${s.first_name} ${s.last_name}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-300">${s.classes?.name || 'N/A'}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone || 'N/A'}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-300">${new Date(s.admission_date).toLocaleDateString()}</td>
+                                    <td class="px-6 py-4">
+                                        <button onclick="editStudent('${s.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button>
+                                        <button onclick="deleteStudent('${s.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody class="divide-y divide-white/5">
-                                ${students.map(s => `
-                                    <tr class="hover:bg-white/[0.02]">
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="flex items-center gap-3">
-                                                <div class="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center text-accent-400 text-xs font-semibold">${s.first_name.charAt(0)}${s.last_name.charAt(0)}</div>
-                                                <span class="font-medium">${s.first_name} ${s.last_name}</span>
-                                            </div>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-gray-300">${s.classes?.name || 'N/A'}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone || 'N/A'}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-300">${new Date(s.admission_date).toLocaleDateString()}</td>
-                                        <td class="px-6 py-4">
-                                            <button onclick="editStudent('${s.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button>
-                                            <button onclick="deleteStudent('${s.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <!-- Student Modal -->
-                    <div id="student-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
-                        <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-                            <div class="flex items-center justify-between mb-6">
-                                <h3 id="student-modal-title" class="text-xl font-semibold">Add Student</h3>
-                                <button onclick="closeStudentModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400">
-                                    <span class="material-symbols-outlined">close</span>
-                                </button>
-                            </div>
-                            <form id="student-form" class="space-y-5">
-                                <input type="hidden" id="student-id">
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-1">First Name</label>
-                                        <input type="text" id="first-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
-                                        <input type="text" id="last-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-1">Date of Birth</label>
-                                        <input type="date" id="dob" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-1">Gender</label>
-                                        <select id="gender" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                            <option value="">Select</option>
-                                            <option value="male">Male</option>
-                                            <option value="female">Female</option>
-                                        </select>
-                                    </div>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Student Modal -->
+                <div id="student-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 id="student-modal-title" class="text-xl font-semibold">Add Student</h3>
+                            <button onclick="closeStudentModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <form id="student-form" class="space-y-5">
+                            <input type="hidden" id="student-id">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">First Name</label>
+                                    <input type="text" id="first-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-1">Class</label>
-                                    <select id="class-id" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                        ${classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
+                                    <input type="text" id="last-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">Date of Birth</label>
+                                    <input type="date" id="dob" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-1">Gender</label>
+                                    <select id="gender" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                                        <option value="">Select</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-1">Parent Name</label>
-                                    <input type="text" id="parent-name" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-1">Parent Phone</label>
-                                    <input type="text" id="parent-phone" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
-                                </div>
-                                <div class="flex justify-end gap-3 pt-2">
-                                    <button type="button" onclick="closeStudentModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button>
-                                    <button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button>
-                                </div>
-                            </form>
-                        </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Class</label>
+                                <select id="class-id" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                                    ${classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Parent Name</label>
+                                <input type="text" id="parent-name" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Parent Phone</label>
+                                <input type="text" id="parent-phone" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                            </div>
+                            <div class="flex justify-end gap-3 pt-2">
+                                <button type="button" onclick="closeStudentModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button>
+                                <button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button>
+                            </div>
+                        </form>
                     </div>
-                `;
-            } catch (e) {
-                showError('Failed to load students. ' + e.message);
-            }
+                </div>
+            `;
         }
 
-        // Global student modal functions
+        // Global modal functions
         window.openStudentModal = async function(studentId = null) {
             const modal = document.getElementById('student-modal');
             const title = document.getElementById('student-modal-title');
@@ -476,14 +475,13 @@
         }
         overlay.addEventListener('click', closeSidebar);
 
-        // Logout
+        // Logout: clear token from memory (no localStorage) and redirect to login
         document.getElementById('logout-btn').addEventListener('click', () => {
-            localStorage.removeItem('supabase_token');
-            window.location.href = 'login.html';
+            window.location.replace('login.html');
         });
 
         // Start
-        checkAuth();
+        init();
     </script>
 </body>
 </html>
