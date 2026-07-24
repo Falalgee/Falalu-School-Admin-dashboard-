@@ -50,6 +50,7 @@
         }
         .msg.error { background: rgba(255,0,0,0.2); color: #ff6666; }
         .msg.success { background: rgba(0,255,0,0.2); color: #66ff66; }
+        .msg.info { background: rgba(37,99,235,0.2); color: #93c5fd; }
     </style>
 </head>
 <body>
@@ -64,11 +65,10 @@
         <div id="message" class="msg"></div>
     </div>
 
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
+        // Your Supabase project details
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
 
         const form = document.getElementById('login-form');
         const msgDiv = document.getElementById('message');
@@ -79,27 +79,43 @@
             msgDiv.style.display = 'block';
         }
 
+        // Show "JavaScript is running" immediately
+        showMessage('Page ready. Please login.', false);
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
-            showMessage('Trying to log in...', false);
+            showMessage('Attempting login...', false);
 
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            try {
+                const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': ANON_KEY,
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
 
-            if (error) {
-                showMessage('Login failed: ' + error.message, true);
-            } else if (data && data.user) {
-                showMessage('Login successful! Redirecting...', false);
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
-            } else {
-                showMessage('Login failed: unexpected response', true);
+                const data = await response.json();
+
+                if (response.ok && data.access_token) {
+                    // Save token for later use (dashboard)
+                    localStorage.setItem('supabase_token', data.access_token);
+                    showMessage('Login successful! Redirecting...', false);
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
+                } else {
+                    // Error message from Supabase
+                    const errorMsg = data.error_description || data.msg || 'Invalid credentials';
+                    showMessage('Login failed: ' + errorMsg, true);
+                }
+            } catch (err) {
+                showMessage('Network error: ' + err.message, true);
             }
         });
     </script>
