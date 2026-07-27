@@ -99,6 +99,18 @@
             console.log(msg);
         }
 
+        // 1. CHECK IF SDK LOADED
+        log('Checking Supabase SDK...');
+        if (typeof window.supabase === 'undefined') {
+            log('❌ Supabase SDK not loaded. Check your internet connection.');
+            document.getElementById('main-content').innerHTML = `
+                <div class="text-center text-red-400 p-4">
+                    <p class="font-bold text-xl">Supabase SDK Failed to Load</p>
+                    <p class="text-sm text-gray-400 mt-2">The required library could not be fetched. Please check your network and reload.</p>
+                </div>`;
+            throw new Error('SDK not loaded');
+        }
+
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
         const supabase = window.supabase.createClient(SUPABASE_URL, ANON_KEY);
@@ -143,7 +155,7 @@
             return JSON.parse(text);
         }
 
-        // Upload image
+        // Upload image to Storage
         async function uploadImage(file) {
             if (!file) return null;
             const fileName = `student-${Date.now()}-${file.name.replace(/\s/g, '_')}`;
@@ -199,6 +211,7 @@
             });
         }
 
+        // Initialize the dashboard
         async function init() {
             log('Fetching profile...');
             try {
@@ -210,7 +223,7 @@
                         <div class="text-center text-red-400 p-4">
                             <p class="font-bold">Profile not found</p>
                             <p>Your user ID: ${currentUserId}</p>
-                            <p>Please run the SQL to add your profile.</p>
+                            <p>Please run the SQL to add your profile with role 'admin'.</p>
                             <p><a href="login.html" class="text-accent-400 underline">Back to login</a></p>
                         </div>`;
                     log('Profile missing');
@@ -242,6 +255,7 @@
             }
         }
 
+        // ======== MODULE LOADING ========
         const mainContent = document.getElementById('main-content');
         const moduleTitle = document.getElementById('module-title');
 
@@ -277,8 +291,7 @@
                     case 'my-students': await renderMyStudents(); break;
                     case 'teacher-attendance': await renderTeacherAttendance(); break;
                     case 'teacher-exams': await renderTeacherExams(); break;
-                    default:
-                        mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
+                    default: mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
                 }
             } catch (e) {
                 showError('Failed to load module: ' + e.message);
@@ -770,9 +783,12 @@
         overlay.addEventListener('click', closeSidebar);
 
         // Logout
-        document.getElementById('logout-btn').addEventListener('click', () => { window.location.replace('login.html'); });
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            window.location.replace('login.html');
+        });
 
+        // Start the app
         init();
     </script>
 </body>
-</html>
+        </html>
