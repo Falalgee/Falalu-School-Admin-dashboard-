@@ -116,7 +116,6 @@
             window.location.replace('login.html');
         }
 
-        // Store in memory (not localStorage)
         const authToken = token;
         const currentUserId = userId;
 
@@ -200,6 +199,8 @@
                     await renderDashboard();
                 } else if (module === 'students') {
                     await renderStudents();
+                } else if (module === 'classes') {
+                    await renderClasses();
                 } else {
                     mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
                 }
@@ -210,6 +211,7 @@
             if (window.innerWidth < 1024) closeSidebar();
         }
 
+        // --- Dashboard ---
         async function renderDashboard() {
             const countQuery = async (table) => {
                 try {
@@ -273,6 +275,7 @@
             }
         }
 
+        // --- Students ---
         async function renderStudents() {
             const students = await supabaseFetch('students?select=*,classes(name)');
             const classes = await supabaseFetch('classes?select=*');
@@ -375,39 +378,137 @@
             `;
         }
 
-        // Global modal functions
-        window.openStudentModal = async function(studentId = null) {
-            const modal = document.getElementById('student-modal');
-            const title = document.getElementById('student-modal-title');
-            const form = document.getElementById('student-form');
-            if (studentId) {
-                title.textContent = 'Edit Student';
-                const student = await supabaseFetch(`students?id=eq.${studentId}&limit=1`).then(d => d[0]);
-                if (student) {
-                    document.getElementById('student-id').value = student.id;
-                    document.getElementById('first-name').value = student.first_name;
-                    document.getElementById('last-name').value = student.last_name;
-                    document.getElementById('dob').value = student.date_of_birth || '';
-                    document.getElementById('gender').value = student.gender || '';
-                    document.getElementById('class-id').value = student.class_id || '';
-                    document.getElementById('parent-name').value = student.parent_name || '';
-                    document.getElementById('parent-phone').value = student.parent_phone || '';
-                }
+        // --- Classes Module ---
+        async function renderClasses() {
+            const classes = await supabaseFetch('classes?select=*');
+            mainContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">All Classes</h2>
+                    <button onclick="openClassModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition">
+                        <span class="material-symbols-outlined text-lg">add</span> Add Class
+                    </button>
+                </div>
+                <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
+                    <table class="w-full min-w-[400px]">
+                        <thead>
+                            <tr class="border-b border-white/5">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Section</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/5">
+                            ${classes.map(c => `
+                                <tr class="hover:bg-white/[0.02]">
+                                    <td class="px-6 py-4 font-medium">${c.name}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-300">${c.section || 'N/A'}</td>
+                                    <td class="px-6 py-4">
+                                        <button onclick="editClass('${c.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button>
+                                        <button onclick="deleteClass('${c.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Class Modal -->
+                <div id="class-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 id="class-modal-title" class="text-xl font-semibold">Add Class</h3>
+                            <button onclick="closeClassModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <form id="class-form" class="space-y-5">
+                            <input type="hidden" id="class-id">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Class Name</label>
+                                <input type="text" id="class-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Section</label>
+                                <input type="text" id="class-section" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
+                            </div>
+                            <div class="flex justify-end gap-3 pt-2">
+                                <button type="button" onclick="closeClassModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button>
+                                <button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Global functions for classes
+        window.openClassModal = function(classId = null) {
+            const modal = document.getElementById('class-modal');
+            const title = document.getElementById('class-modal-title');
+            const form = document.getElementById('class-form');
+            if (classId) {
+                title.textContent = 'Edit Class';
+                supabaseFetch(`classes?id=eq.${classId}&limit=1`).then(d => {
+                    const cls = d[0];
+                    document.getElementById('class-id').value = cls.id;
+                    document.getElementById('class-name').value = cls.name;
+                    document.getElementById('class-section').value = cls.section || '';
+                });
             } else {
-                title.textContent = 'Add Student';
+                title.textContent = 'Add Class';
                 form.reset();
-                document.getElementById('student-id').value = '';
+                document.getElementById('class-id').value = '';
             }
             modal.classList.remove('hidden');
             modal.classList.add('flex');
         };
 
-        window.closeStudentModal = function() {
-            document.getElementById('student-modal').classList.add('hidden');
-            document.getElementById('student-modal').classList.remove('flex');
+        window.closeClassModal = function() {
+            document.getElementById('class-modal').classList.add('hidden');
+            document.getElementById('class-modal').classList.remove('flex');
         };
 
+        window.editClass = (id) => openClassModal(id);
+
+        window.deleteClass = async (id) => {
+            if (confirm('Are you sure? This may affect students in this class.')) {
+                try {
+                    await supabaseFetch(`classes?id=eq.${id}`, { method: 'DELETE' });
+                    loadModule('classes');
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                }
+            }
+        };
+
+        // Class form submission
         document.addEventListener('submit', async (e) => {
+            if (e.target.id === 'class-form') {
+                e.preventDefault();
+                const id = document.getElementById('class-id').value;
+                const classData = {
+                    name: document.getElementById('class-name').value,
+                    section: document.getElementById('class-section').value
+                };
+
+                try {
+                    if (id) {
+                        await supabaseFetch(`classes?id=eq.${id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify(classData)
+                        });
+                    } else {
+                        await supabaseFetch('classes', {
+                            method: 'POST',
+                            body: JSON.stringify(classData)
+                        });
+                    }
+                    closeClassModal();
+                    loadModule('classes');
+                } catch (err) {
+                    alert('Error saving class: ' + err.message);
+                }
+            }
+
             if (e.target.id === 'student-form') {
                 e.preventDefault();
                 const id = document.getElementById('student-id').value;
@@ -440,6 +541,38 @@
                 }
             }
         });
+
+        // Existing student modal functions
+        window.openStudentModal = async function(studentId = null) {
+            const modal = document.getElementById('student-modal');
+            const title = document.getElementById('student-modal-title');
+            const form = document.getElementById('student-form');
+            if (studentId) {
+                title.textContent = 'Edit Student';
+                const student = await supabaseFetch(`students?id=eq.${studentId}&limit=1`).then(d => d[0]);
+                if (student) {
+                    document.getElementById('student-id').value = student.id;
+                    document.getElementById('first-name').value = student.first_name;
+                    document.getElementById('last-name').value = student.last_name;
+                    document.getElementById('dob').value = student.date_of_birth || '';
+                    document.getElementById('gender').value = student.gender || '';
+                    document.getElementById('class-id').value = student.class_id || '';
+                    document.getElementById('parent-name').value = student.parent_name || '';
+                    document.getElementById('parent-phone').value = student.parent_phone || '';
+                }
+            } else {
+                title.textContent = 'Add Student';
+                form.reset();
+                document.getElementById('student-id').value = '';
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeStudentModal = function() {
+            document.getElementById('student-modal').classList.add('hidden');
+            document.getElementById('student-modal').classList.remove('flex');
+        };
 
         window.editStudent = (id) => openStudentModal(id);
 
@@ -475,7 +608,7 @@
         }
         overlay.addEventListener('click', closeSidebar);
 
-        // Logout: clear token from memory (no localStorage) and redirect to login
+        // Logout
         document.getElementById('logout-btn').addEventListener('click', () => {
             window.location.replace('login.html');
         });
@@ -484,4 +617,4 @@
         init();
     </script>
 </body>
-</html>
+    </html>
