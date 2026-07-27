@@ -56,9 +56,9 @@
 <body>
     <div class="card">
         <h2>Falalu Schools</h2>
-        <p>Admin Portal</p>
+        <p>Admin / Teacher Login</p>
         <form id="login-form">
-            <input type="email" id="email" placeholder="Email" required>
+            <input type="text" id="email-or-id" placeholder="Email or Teacher ID" required>
             <input type="password" id="password" placeholder="Password" required>
             <button type="submit">Sign In</button>
         </form>
@@ -78,15 +78,35 @@
             msgDiv.style.display = 'block';
         }
 
-        showMessage('Page ready. Please login.', false);
+        showMessage('Enter your email or teacher ID.', false);
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value.trim();
+            const input = document.getElementById('email-or-id').value.trim();
             const password = document.getElementById('password').value;
+            let email = input;
 
+            // If input is not an email (no '@'), treat it as teacher ID
+            if (!input.includes('@')) {
+                showMessage('Looking up ID...', false);
+                try {
+                    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=email&teacher_id_number=eq.${encodeURIComponent(input)}`, {
+                        headers: { 'apikey': ANON_KEY }
+                    });
+                    const profiles = await res.json();
+                    if (profiles.length === 0) {
+                        showMessage('Teacher ID not found.', true);
+                        return;
+                    }
+                    email = profiles[0].email;
+                } catch (err) {
+                    showMessage('Error looking up ID: ' + err.message, true);
+                    return;
+                }
+            }
+
+            // Authenticate
             showMessage('Signing in...', false);
-
             try {
                 const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
                     method: 'POST',
@@ -106,13 +126,11 @@
                 }
 
                 const token = authData.access_token;
-                // Decode the token to get user ID
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 const userId = payload.sub;
 
-                // Redirect with token and userId as query parameters
                 const dashboardUrl = `index.html?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
-                showMessage('Login successful! Opening dashboard...', false);
+                showMessage('Login successful!', false);
                 window.location.href = dashboardUrl;
             } catch (err) {
                 showMessage('Network error: ' + err.message, true);
