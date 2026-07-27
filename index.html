@@ -118,7 +118,7 @@
         const authToken = token;
         const currentUserId = userId;
 
-        // Improved fetch with non‑JSON handling
+        // General REST fetch
         async function supabaseFetch(path, options = {}) {
             const url = `${SUPABASE_URL}/rest/v1/${path}`;
             const headers = {
@@ -136,12 +136,9 @@
                 try {
                     const errData = await res.json();
                     errorMsg = errData.message || errorMsg;
-                } catch (e) {
-                    // ignore parse errors
-                }
+                } catch (e) { /* ignore */ }
                 throw new Error(errorMsg);
             }
-            // For 204 or HEAD, return null
             if (res.status === 204 || options.method === 'HEAD') return null;
             const text = await res.text();
             if (!text) return null;
@@ -151,18 +148,25 @@
         // Upload image to Supabase Storage
         async function uploadImage(file) {
             if (!file) return null;
-            const fileName = `student-${Date.now()}-${file.name}`;
-            const { data, error } = await supabaseFetch(`storage/v1/object/student-photos/${fileName}`, {
+            const fileName = `student-${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+            const uploadUrl = `${SUPABASE_URL}/storage/v1/object/student-photos/${fileName}`;
+
+            const res = await fetch(uploadUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': file.type,
+                    'apikey': ANON_KEY,
+                    'Authorization': `Bearer ${authToken}`,
                     'x-upsert': 'true',
+                    // No Content-Type – browser sets correct boundary for FormData
                 },
                 body: file
-            }).catch(err => { throw err; });
+            });
 
-            if (error) throw new Error(error.message);
-            // Return public URL
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({ message: 'Upload failed' }));
+                throw new Error(errData.message || errData.error || 'Upload failed');
+            }
+
             return `${SUPABASE_URL}/storage/v1/object/public/student-photos/${fileName}`;
         }
 
@@ -305,7 +309,7 @@
             }
         }
 
-        // --- Students (with image upload) ---
+        // --- Students (with working image upload) ---
         async function renderStudents() {
             const students = await supabaseFetch('students?select=*,classes(name)');
             const classes = await supabaseFetch('classes?select=*');
@@ -623,7 +627,7 @@
                 const photoInput = document.getElementById('student-photo');
                 const existingPhotoUrl = document.getElementById('existing-photo-url').value;
 
-                let photoUrl = existingPhotoUrl; // keep existing if not changed
+                let photoUrl = existingPhotoUrl; // keep existing if no new file
                 if (photoInput.files.length > 0) {
                     try {
                         photoUrl = await uploadImage(photoInput.files[0]);
@@ -694,4 +698,4 @@
         init();
     </script>
 </body>
-</html>
+    </html>
