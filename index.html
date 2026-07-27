@@ -34,6 +34,7 @@
             .sidebar-overlay.show { display: block; }
         }
         #status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #000; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px 10px; z-index: 999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #image-preview { max-width: 200px; max-height: 200px; border-radius: 0.75rem; margin-top: 0.5rem; }
     </style>
 </head>
 <body class="bg-brand-950 text-white font-body antialiased">
@@ -105,8 +106,6 @@
 
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
-
-        // Extract token and userId from URL
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const userId = urlParams.get('userId');
@@ -119,21 +118,52 @@
         const authToken = token;
         const currentUserId = userId;
 
+        // Improved fetch with non‑JSON handling
         async function supabaseFetch(path, options = {}) {
             const url = `${SUPABASE_URL}/rest/v1/${path}`;
             const headers = {
-                'Content-Type': 'application/json',
                 'apikey': ANON_KEY,
                 'Authorization': `Bearer ${authToken}`,
                 ...options.headers
             };
+            if (!headers['Content-Type'] && options.body) {
+                headers['Content-Type'] = 'application/json';
+            }
+
             const res = await fetch(url, { ...options, headers });
             if (!res.ok) {
-                const err = await res.json().catch(() => ({ message: res.statusText }));
-                throw new Error(err.message || `Request failed with status ${res.status}`);
+                let errorMsg = `Request failed with status ${res.status}`;
+                try {
+                    const errData = await res.json();
+                    errorMsg = errData.message || errorMsg;
+                } catch (e) {
+                    // ignore parse errors
+                }
+                throw new Error(errorMsg);
             }
+            // For 204 or HEAD, return null
             if (res.status === 204 || options.method === 'HEAD') return null;
-            return res.json();
+            const text = await res.text();
+            if (!text) return null;
+            return JSON.parse(text);
+        }
+
+        // Upload image to Supabase Storage
+        async function uploadImage(file) {
+            if (!file) return null;
+            const fileName = `student-${Date.now()}-${file.name}`;
+            const { data, error } = await supabaseFetch(`storage/v1/object/student-photos/${fileName}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': file.type,
+                    'x-upsert': 'true',
+                },
+                body: file
+            }).catch(err => { throw err; });
+
+            if (error) throw new Error(error.message);
+            // Return public URL
+            return `${SUPABASE_URL}/storage/v1/object/public/student-photos/${fileName}`;
         }
 
         async function init() {
@@ -275,7 +305,7 @@
             }
         }
 
-        // --- Students ---
+        // --- Students (with image upload) ---
         async function renderStudents() {
             const students = await supabaseFetch('students?select=*,classes(name)');
             const classes = await supabaseFetch('classes?select=*');
@@ -291,6 +321,7 @@
                     <table class="w-full min-w-[700px]">
                         <thead>
                             <tr class="border-b border-white/5">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Photo</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Class</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th>
@@ -301,11 +332,11 @@
                         <tbody class="divide-y divide-white/5">
                             ${students.map(s => `
                                 <tr class="hover:bg-white/[0.02]">
+                                    <td class="px-6 py-4">
+                                        <img src="${s.photo_url || ''}" alt="${s.first_name}" class="w-8 h-8 rounded-full object-cover bg-white/10" onerror="this.style.display='none'">
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center text-accent-400 text-xs font-semibold">${s.first_name.charAt(0)}${s.last_name.charAt(0)}</div>
-                                            <span class="font-medium">${s.first_name} ${s.last_name}</span>
-                                        </div>
+                                        <span class="font-medium">${s.first_name} ${s.last_name}</span>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-300">${s.classes?.name || 'N/A'}</td>
                                     <td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone || 'N/A'}</td>
@@ -330,6 +361,7 @@
                         </div>
                         <form id="student-form" class="space-y-5">
                             <input type="hidden" id="student-id">
+                            <input type="hidden" id="existing-photo-url">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-300 mb-1">First Name</label>
@@ -339,6 +371,11 @@
                                     <label class="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
                                     <input type="text" id="last-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">
                                 </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Photo</label>
+                                <input type="file" id="student-photo" accept="image/*" class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent-500 file:text-white hover:file:bg-accent-600">
+                                <img id="image-preview" class="hidden" src="" alt="Preview">
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <div>
@@ -376,9 +413,25 @@
                     </div>
                 </div>
             `;
+
+            // Preview image on file selection
+            document.getElementById('student-photo').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const preview = document.getElementById('image-preview');
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.classList.add('hidden');
+                }
+            });
         }
 
-        // --- Classes Module ---
+        // --- Classes ---
         async function renderClasses() {
             const classes = await supabaseFetch('classes?select=*');
             mainContent.innerHTML = `
@@ -440,7 +493,7 @@
             `;
         }
 
-        // Global functions for classes
+        // --- Global functions for Classes ---
         window.openClassModal = function(classId = null) {
             const modal = document.getElementById('class-modal');
             const title = document.getElementById('class-modal-title');
@@ -480,7 +533,62 @@
             }
         };
 
-        // Class form submission
+        // --- Global functions for Students ---
+        window.openStudentModal = async function(studentId = null) {
+            const modal = document.getElementById('student-modal');
+            const title = document.getElementById('student-modal-title');
+            const form = document.getElementById('student-form');
+            const preview = document.getElementById('image-preview');
+            preview.classList.add('hidden');
+            document.getElementById('student-photo').value = '';
+
+            if (studentId) {
+                title.textContent = 'Edit Student';
+                const student = await supabaseFetch(`students?id=eq.${studentId}&limit=1`).then(d => d[0]);
+                if (student) {
+                    document.getElementById('student-id').value = student.id;
+                    document.getElementById('first-name').value = student.first_name;
+                    document.getElementById('last-name').value = student.last_name;
+                    document.getElementById('dob').value = student.date_of_birth || '';
+                    document.getElementById('gender').value = student.gender || '';
+                    document.getElementById('class-id').value = student.class_id || '';
+                    document.getElementById('parent-name').value = student.parent_name || '';
+                    document.getElementById('parent-phone').value = student.parent_phone || '';
+                    document.getElementById('existing-photo-url').value = student.photo_url || '';
+                    if (student.photo_url) {
+                        preview.src = student.photo_url;
+                        preview.classList.remove('hidden');
+                    }
+                }
+            } else {
+                title.textContent = 'Add Student';
+                form.reset();
+                document.getElementById('student-id').value = '';
+                document.getElementById('existing-photo-url').value = '';
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeStudentModal = function() {
+            document.getElementById('student-modal').classList.add('hidden');
+            document.getElementById('student-modal').classList.remove('flex');
+        };
+
+        window.editStudent = (id) => openStudentModal(id);
+
+        window.deleteStudent = async (id) => {
+            if (confirm('Are you sure?')) {
+                try {
+                    await supabaseFetch(`students?id=eq.${id}`, { method: 'DELETE' });
+                    loadModule('students');
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                }
+            }
+        };
+
+        // --- Form Submissions ---
         document.addEventListener('submit', async (e) => {
             if (e.target.id === 'class-form') {
                 e.preventDefault();
@@ -512,6 +620,19 @@
             if (e.target.id === 'student-form') {
                 e.preventDefault();
                 const id = document.getElementById('student-id').value;
+                const photoInput = document.getElementById('student-photo');
+                const existingPhotoUrl = document.getElementById('existing-photo-url').value;
+
+                let photoUrl = existingPhotoUrl; // keep existing if not changed
+                if (photoInput.files.length > 0) {
+                    try {
+                        photoUrl = await uploadImage(photoInput.files[0]);
+                    } catch (err) {
+                        alert('Error uploading image: ' + err.message);
+                        return;
+                    }
+                }
+
                 const studentData = {
                     first_name: document.getElementById('first-name').value,
                     last_name: document.getElementById('last-name').value,
@@ -520,6 +641,7 @@
                     class_id: document.getElementById('class-id').value,
                     parent_name: document.getElementById('parent-name').value,
                     parent_phone: document.getElementById('parent-phone').value,
+                    photo_url: photoUrl || null
                 };
 
                 try {
@@ -542,52 +664,7 @@
             }
         });
 
-        // Existing student modal functions
-        window.openStudentModal = async function(studentId = null) {
-            const modal = document.getElementById('student-modal');
-            const title = document.getElementById('student-modal-title');
-            const form = document.getElementById('student-form');
-            if (studentId) {
-                title.textContent = 'Edit Student';
-                const student = await supabaseFetch(`students?id=eq.${studentId}&limit=1`).then(d => d[0]);
-                if (student) {
-                    document.getElementById('student-id').value = student.id;
-                    document.getElementById('first-name').value = student.first_name;
-                    document.getElementById('last-name').value = student.last_name;
-                    document.getElementById('dob').value = student.date_of_birth || '';
-                    document.getElementById('gender').value = student.gender || '';
-                    document.getElementById('class-id').value = student.class_id || '';
-                    document.getElementById('parent-name').value = student.parent_name || '';
-                    document.getElementById('parent-phone').value = student.parent_phone || '';
-                }
-            } else {
-                title.textContent = 'Add Student';
-                form.reset();
-                document.getElementById('student-id').value = '';
-            }
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        };
-
-        window.closeStudentModal = function() {
-            document.getElementById('student-modal').classList.add('hidden');
-            document.getElementById('student-modal').classList.remove('flex');
-        };
-
-        window.editStudent = (id) => openStudentModal(id);
-
-        window.deleteStudent = async (id) => {
-            if (confirm('Are you sure?')) {
-                try {
-                    await supabaseFetch(`students?id=eq.${id}`, { method: 'DELETE' });
-                    loadModule('students');
-                } catch (err) {
-                    alert('Error: ' + err.message);
-                }
-            }
-        };
-
-        // Sidebar links
+        // --- Sidebar links ---
         document.querySelectorAll('.sidebar-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -595,7 +672,7 @@
             });
         });
 
-        // Mobile menu
+        // --- Mobile menu ---
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         document.getElementById('menu-toggle').addEventListener('click', () => {
@@ -608,7 +685,7 @@
         }
         overlay.addEventListener('click', closeSidebar);
 
-        // Logout
+        // --- Logout ---
         document.getElementById('logout-btn').addEventListener('click', () => {
             window.location.replace('login.html');
         });
@@ -617,4 +694,4 @@
         init();
     </script>
 </body>
-    </html>
+</html>
