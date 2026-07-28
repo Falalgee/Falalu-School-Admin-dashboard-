@@ -28,13 +28,12 @@
             text-overflow: ellipsis;
         }
         a { color: #93c5fd; }
-        .container { padding: 2rem; min-height: 100vh; }
-        .loading { text-align: center; padding-top: 20vh; }
+        .container { padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
     <div id="status-bar">⏳ Initializing...</div>
-    <main id="main-content" class="container loading">
+    <main id="main-content" class="container">
         <p>Loading dashboard…</p>
     </main>
 
@@ -48,20 +47,40 @@
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
 
-        // Get token and userId from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        const userId = urlParams.get('userId');
+        // Read token and userId from localStorage
+        const token = localStorage.getItem('supabase_token');
+        const userId = localStorage.getItem('supabase_user_id');
 
         if (!token || !userId) {
-            log('❌ Missing token or userId');
-            document.getElementById('main-content').innerHTML = '<p style="color:red">No login token found. Please <a href="login.html">log in</a>.</p>';
-            throw new Error('Missing parameters');
+            log('❌ No saved session. Redirecting to login...');
+            window.location.replace('login.html');
+            throw new Error('No token');
         }
 
-        log('✅ Token found. Fetching profile…');
+        log('✅ Token found. Checking validity...');
 
-        // Fetch profile using plain fetch (same as login)
+        // Quick check: decode token and see if expired
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp && payload.exp < now) {
+                log('❌ Token expired. Redirecting to login...');
+                localStorage.removeItem('supabase_token');
+                localStorage.removeItem('supabase_user_id');
+                window.location.replace('login.html');
+                throw new Error('Token expired');
+            }
+        } catch (e) {
+            log('❌ Invalid token format. Redirecting to login...');
+            localStorage.removeItem('supabase_token');
+            localStorage.removeItem('supabase_user_id');
+            window.location.replace('login.html');
+            throw new Error('Invalid token');
+        }
+
+        log('Token valid. Fetching profile...');
+
+        // Fetch profile using fetch
         async function fetchProfile() {
             try {
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
@@ -82,14 +101,20 @@
                 const profile = profiles[0];
 
                 if (!profile) {
-                    log('❌ Profile not found for user ' + userId);
-                    document.getElementById('main-content').innerHTML = `<p style="color:red">Profile not found.</p><p>Your user ID: ${userId}</p><p>Run the SQL to add your profile with role 'admin'.</p>`;
+                    log('❌ Profile not found');
+                    document.getElementById('main-content').innerHTML = `<p style="color:red">Profile not found for your account. Please contact the administrator.</p>`;
                     return;
                 }
 
                 const name = profile.full_name || 'User';
                 log(`✅ Welcome, ${name} (${profile.role})`);
-                document.getElementById('main-content').innerHTML = `<h2>Dashboard</h2><p>Welcome, <strong>${name}</strong>!</p><p>Your role: ${profile.role}</p><p>The dashboard is ready. Modules will be added now.</p>`;
+                document.getElementById('main-content').innerHTML = `
+                    <div style="text-align:center">
+                        <h2>Welcome, ${name}!</h2>
+                        <p>Your role: ${profile.role}</p>
+                        <p>Dashboard modules will appear here once we rebuild them.</p>
+                        <p><a href="#" onclick="localStorage.clear(); window.location.replace('login.html')">Logout</a></p>
+                    </div>`;
             } catch (err) {
                 log('❌ Unexpected error: ' + err.message);
                 document.getElementById('main-content').innerHTML = `<p style="color:red">Unexpected error: ${err.message}</p>`;
