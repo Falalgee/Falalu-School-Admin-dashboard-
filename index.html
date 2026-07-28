@@ -4,124 +4,714 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | Falalu Schools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 900: '#0a1628', 950: '#060e1a' },
+                        accent: { 500: '#2563eb', 600: '#1d4ed8' }
+                    },
+                    fontFamily: {
+                        display: ['"Playfair Display"', 'serif'],
+                        body: ['"Inter"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <style>
-        body {
-            background: #060e1a;
-            color: white;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
+        body { background: #060e1a; color: #ffffff; font-family: 'Inter', sans-serif; }
+        .sidebar-link.active { background: linear-gradient(90deg, rgba(37,99,235,0.2) 0%, transparent 100%); border-left: 3px solid #2563eb; }
+        @media (max-width: 1023px) {
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay { display: none; }
+            .sidebar-overlay.show { display: block; }
         }
-        #status-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #000;
-            color: #0f0;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 6px 10px;
-            z-index: 999;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        a { color: #93c5fd; }
-        .container { padding: 2rem; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        #status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #000; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px 10px; z-index: 999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #image-preview { max-width: 200px; max-height: 200px; border-radius: 0.75rem; margin-top: 0.5rem; }
     </style>
 </head>
-<body>
+<body class="bg-brand-950 text-white font-body antialiased">
+
     <div id="status-bar">⏳ Initializing...</div>
-    <main id="main-content" class="container">
-        <p>Loading dashboard…</p>
-    </main>
+
+    <!-- Sidebar overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/50 z-20" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar w-64 bg-brand-900 border-r border-white/5 flex flex-col fixed h-full z-30 inset-y-0 left-0 lg:relative lg:translate-x-0">
+        <div class="h-20 flex items-center px-6 border-b border-white/5">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-accent-500 flex items-center justify-center text-white"><span class="material-symbols-outlined text-xl">school</span></div>
+                <div><h1 class="font-display text-lg font-bold">Falalu</h1><p class="text-xs text-gray-400" id="sidebar-role">Admin</p></div>
+            </div>
+        </div>
+        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto" id="sidebar-nav">
+            <!-- Filled by buildSidebar() -->
+        </nav>
+        <div class="p-4 border-t border-white/5">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-accent-500/20 flex items-center justify-center text-accent-400 font-semibold text-sm" id="user-avatar">A</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate" id="user-name">Admin</p>
+                    <button id="logout-btn" class="text-xs text-gray-400 hover:text-red-400 transition">Logout</button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="flex-1 flex flex-col min-h-screen lg:ml-64">
+        <header class="sticky top-0 z-10 bg-brand-900/95 backdrop-blur-sm border-b border-white/5">
+            <div class="flex items-center justify-between h-16 px-4">
+                <div class="flex items-center gap-4">
+                    <button id="menu-toggle" class="lg:hidden p-2 rounded-lg hover:bg-white/5 text-gray-400"><span class="material-symbols-outlined">menu</span></button>
+                    <h1 class="font-display text-xl lg:text-2xl font-bold" id="module-title">Dashboard</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="hidden sm:flex items-center gap-3 border-l border-white/5 pl-4">
+                        <span class="text-sm font-medium hidden lg:inline" id="header-user">Admin User</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main id="main-content" class="flex-1 p-4 lg:p-8 flex items-center justify-center">
+            <div class="text-center">
+                <div class="animate-spin h-10 w-10 border-2 border-accent-500 border-t-transparent rounded-full mx-auto"></div>
+                <p class="mt-4 text-gray-400">Loading dashboard...</p>
+            </div>
+        </main>
+    </div>
 
     <script>
+        // ===================== CONFIG =====================
+        const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
+        const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
+        let authToken = localStorage.getItem('supabase_token') || '';
+        const currentUserId = localStorage.getItem('supabase_user_id') || '';
+        let userRole = 'teacher';
+
         const statusEl = document.getElementById('status-bar');
         function log(msg) {
             statusEl.textContent = msg;
             console.log(msg);
         }
 
-        const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
-        const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
-
-        // Read token and userId from localStorage
-        const token = localStorage.getItem('supabase_token');
-        const userId = localStorage.getItem('supabase_user_id');
-
-        if (!token || !userId) {
-            log('❌ No saved session. Redirecting to login...');
+        // Check auth
+        if (!authToken || !currentUserId) {
+            log('❌ No session. Redirecting...');
             window.location.replace('login.html');
-            throw new Error('No token');
         }
 
-        log('✅ Token found. Checking validity...');
-
-        // Quick check: decode token and see if expired
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const now = Math.floor(Date.now() / 1000);
-            if (payload.exp && payload.exp < now) {
-                log('❌ Token expired. Redirecting to login...');
-                localStorage.removeItem('supabase_token');
-                localStorage.removeItem('supabase_user_id');
-                window.location.replace('login.html');
-                throw new Error('Token expired');
+        // ===================== FETCH HELPERS =====================
+        async function apiFetch(path, options = {}) {
+            const url = `${SUPABASE_URL}/rest/v1/${path}`;
+            const headers = {
+                'apikey': ANON_KEY,
+                'Authorization': `Bearer ${authToken}`,
+                ...(options.headers || {})
+            };
+            if (!headers['Content-Type'] && options.body) {
+                headers['Content-Type'] = 'application/json';
             }
-        } catch (e) {
-            log('❌ Invalid token format. Redirecting to login...');
-            localStorage.removeItem('supabase_token');
-            localStorage.removeItem('supabase_user_id');
-            window.location.replace('login.html');
-            throw new Error('Invalid token');
+            const res = await fetch(url, { ...options, headers });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ message: res.statusText }));
+                throw new Error(err.message || `Request failed with status ${res.status}`);
+            }
+            if (res.status === 204 || options.method === 'HEAD') return null;
+            const text = await res.text();
+            return text ? JSON.parse(text) : null;
         }
 
-        log('Token valid. Fetching profile...');
+        async function uploadImage(file) {
+            if (!file) return null;
+            const fileName = `student-${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+            const uploadUrl = `${SUPABASE_URL}/storage/v1/object/student-photos/${fileName}`;
+            const res = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'apikey': ANON_KEY,
+                    'Authorization': `Bearer ${authToken}`,
+                    'x-upsert': 'true'
+                },
+                body: file
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({ message: 'Upload failed' }));
+                throw new Error(errData.message || 'Upload failed');
+            }
+            return `${SUPABASE_URL}/storage/v1/object/public/student-photos/${fileName}`;
+        }
 
-        // Fetch profile using fetch
-        async function fetchProfile() {
+        // ===================== SIDEBAR =====================
+        function buildSidebar(role) {
+            const nav = document.getElementById('sidebar-nav');
+            let links = '';
+            if (role === 'admin') {
+                links = `
+                    <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="dashboard"><span class="material-symbols-outlined text-xl">dashboard</span> Dashboard</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="students"><span class="material-symbols-outlined text-xl">people</span> Students</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teachers"><span class="material-symbols-outlined text-xl">school</span> Teachers</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="classes"><span class="material-symbols-outlined text-xl">groups</span> Classes</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="attendance"><span class="material-symbols-outlined text-xl">checklist</span> Attendance</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="exams"><span class="material-symbols-outlined text-xl">quiz</span> Exams</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="fees"><span class="material-symbols-outlined text-xl">payments</span> Fees</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="notices"><span class="material-symbols-outlined text-xl">campaign</span> Notices</a>
+                `;
+            } else {
+                links = `
+                    <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="my-students"><span class="material-symbols-outlined text-xl">people</span> My Students</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-attendance"><span class="material-symbols-outlined text-xl">checklist</span> Attendance</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-exams"><span class="material-symbols-outlined text-xl">quiz</span> Exam Scores</a>
+                `;
+            }
+            nav.innerHTML = links;
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadModule(link.dataset.module);
+                });
+            });
+        }
+
+        // ===================== INIT =====================
+        async function init() {
+            log('Fetching profile...');
             try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
-                    headers: {
-                        'apikey': ANON_KEY,
-                        'Authorization': `Bearer ${token}`,
-                    },
+                const profiles = await apiFetch(`profiles?id=eq.${currentUserId}&select=*`);
+                const profile = profiles[0];
+                if (!profile) {
+                    document.getElementById('main-content').innerHTML = `<div class="text-center text-red-400 p-4"><p>Profile not found. Please contact admin.</p></div>`;
+                    return;
+                }
+                userRole = profile.role;
+                const name = profile.full_name || (profile.teacher_id_number ? `Teacher ${profile.teacher_id_number}` : 'User');
+                document.getElementById('user-name').textContent = name;
+                document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+                document.getElementById('header-user').textContent = name;
+                document.getElementById('sidebar-role').textContent = userRole === 'admin' ? 'Admin' : 'Teacher';
+                buildSidebar(userRole);
+                if (userRole === 'admin') loadModule('dashboard');
+                else loadModule('my-students');
+            } catch (e) {
+                log('Error: ' + e.message);
+                document.getElementById('main-content').innerHTML = `<div class="text-center text-red-400 p-4">Error loading profile: ${e.message}</div>`;
+            }
+        }
+
+        const mainContent = document.getElementById('main-content');
+        const moduleTitle = document.getElementById('module-title');
+
+        async function loadModule(module) {
+            log('Loading: ' + module);
+            const titles = {
+                dashboard: 'Dashboard Overview',
+                students: 'Student Management',
+                teachers: 'Teacher Management',
+                classes: 'Class Management',
+                attendance: 'Attendance',
+                exams: 'Examinations',
+                fees: 'Fee Management',
+                notices: 'Notice Board',
+                'my-students': 'My Students',
+                'teacher-attendance': 'Take Attendance',
+                'teacher-exams': 'Exam Scores'
+            };
+            moduleTitle.textContent = titles[module] || module;
+            mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">Loading ${titles[module]}...</div>`;
+            try {
+                switch (module) {
+                    case 'dashboard': await renderDashboard(); break;
+                    case 'students': await renderStudents(); break;
+                    case 'teachers': await renderTeachers(); break;
+                    case 'classes': await renderClasses(); break;
+                    case 'my-students': await renderMyStudents(); break;
+                    case 'teacher-attendance': await renderTeacherAttendance(); break;
+                    case 'teacher-exams': await renderTeacherExams(); break;
+                    default: mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
+                }
+            } catch (e) {
+                mainContent.innerHTML = `<div class="text-center text-red-400 p-4">Error: ${e.message}</div>`;
+            }
+            document.querySelectorAll('.sidebar-link').forEach(l => {
+                l.classList.remove('active');
+                if (l.dataset.module === module) l.classList.add('active');
+            });
+            if (window.innerWidth < 1024) closeSidebar();
+        }
+
+        // ===================== ADMIN MODULES =====================
+        async function renderDashboard() {
+            const count = async (table) => {
+                try {
+                    const data = await apiFetch(`${table}?select=id`);
+                    return Array.isArray(data) ? data.length : 0;
+                } catch (e) { return 0; }
+            };
+            const [students, teachers, classes, notices] = await Promise.all([
+                count('students'), count('teachers'), count('classes'), count('notices')
+            ]);
+            mainContent.innerHTML = `
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">people</span><h3 class="text-3xl font-bold mt-3">${students}</h3><p class="text-sm text-gray-400">Students</p></div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">school</span><h3 class="text-3xl font-bold mt-3">${teachers}</h3><p class="text-sm text-gray-400">Teachers</p></div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">groups</span><h3 class="text-3xl font-bold mt-3">${classes}</h3><p class="text-sm text-gray-400">Classes</p></div>
+                    <div class="bg-brand-900 rounded-2xl p-6 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">campaign</span><h3 class="text-3xl font-bold mt-3">${notices}</h3><p class="text-sm text-gray-400">Notices</p></div>
+                </div>
+                <div class="bg-brand-900 rounded-2xl p-6 border border-white/5"><h2 class="text-xl font-semibold mb-4">Recent Notices</h2><div id="recent-notices" class="space-y-3">Loading...</div></div>
+            `;
+            const noticesData = await apiFetch('notices?select=*&order=created_at.desc&limit=5').catch(() => []);
+            const container = document.getElementById('recent-notices');
+            container.innerHTML = noticesData.length ? noticesData.map(n => `<div class="p-4 bg-white/[0.03] rounded-xl border border-white/5"><h4 class="font-medium">${n.title}</h4><p class="text-sm text-gray-400 mt-1">${n.content}</p><span class="text-xs text-gray-500 mt-2 block">${new Date(n.created_at).toLocaleDateString()}</span></div>`).join('') : '<p class="text-sm text-gray-400 py-4">No notices yet.</p>';
+        }
+
+        async function renderStudents() {
+            const students = await apiFetch('students?select=*,classes(name)');
+            const classes = await apiFetch('classes?select=*');
+            mainContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">All Students</h2>
+                    <button onclick="openStudentModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition"><span class="material-symbols-outlined text-lg">add</span> Add Student</button>
+                </div>
+                <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
+                    <table class="w-full min-w-[700px]">
+                        <thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Photo</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Class</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Admission Date</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th></tr></thead>
+                        <tbody class="divide-y divide-white/5">${students.map(s => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4"><img src="${s.photo_url||''}" alt="${s.first_name}" class="w-8 h-8 rounded-full object-cover bg-white/10" onerror="this.style.display='none'"></td><td class="px-6 py-4 whitespace-nowrap"><span class="font-medium">${s.first_name} ${s.last_name}</span></td><td class="px-6 py-4 text-sm text-gray-300">${s.classes?.name||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300">${new Date(s.admission_date).toLocaleDateString()}</td><td class="px-6 py-4"><button onclick="editStudent('${s.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button><button onclick="deleteStudent('${s.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button></td></tr>`).join('')}</tbody>
+                    </table>
+                </div>
+                <!-- Student Modal -->
+                <div id="student-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div class="flex items-center justify-between mb-6"><h3 id="student-modal-title" class="text-xl font-semibold">Add Student</h3><button onclick="closeStudentModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400"><span class="material-symbols-outlined">close</span></button></div>
+                        <form id="student-form" class="space-y-5">
+                            <input type="hidden" id="student-id"><input type="hidden" id="existing-photo-url">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5"><div><label class="block text-sm font-medium text-gray-300 mb-1">First Name</label><input type="text" id="first-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div><div><label class="block text-sm font-medium text-gray-300 mb-1">Last Name</label><input type="text" id="last-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Photo</label><input type="file" id="student-photo" accept="image/*" class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent-500 file:text-white hover:file:bg-accent-600"><img id="image-preview" class="hidden" src="" alt="Preview"></div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5"><div><label class="block text-sm font-medium text-gray-300 mb-1">Date of Birth</label><input type="date" id="dob" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div><div><label class="block text-sm font-medium text-gray-300 mb-1">Gender</label><select id="gender" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option></select></div></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Class</label><select id="class-id" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">${classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Parent Name</label><input type="text" id="parent-name" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Parent Phone</label><input type="text" id="parent-phone" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
+                            <div class="flex justify-end gap-3 pt-2"><button type="button" onclick="closeStudentModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button><button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button></div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('student-photo').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const preview = document.getElementById('image-preview');
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) { preview.src = e.target.result; preview.classList.remove('hidden'); };
+                    reader.readAsDataURL(file);
+                } else { preview.classList.add('hidden'); }
+            });
+        }
+
+        async function renderTeachers() {
+            const teachers = await apiFetch('teachers?select=*,profiles(full_name,email,teacher_id_number)');
+            const allProfiles = await apiFetch('profiles?select=*');
+            const teacherIds = teachers.map(t => t.id);
+            const availableProfiles = allProfiles.filter(p => !teacherIds.includes(p.id));
+            const allClasses = await apiFetch('classes?select=*');
+            mainContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">All Teachers</h2>
+                    <button onclick="openTeacherModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition"><span class="material-symbols-outlined text-lg">add</span> Add Teacher</button>
+                </div>
+                <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
+                    <table class="w-full min-w-[800px]">
+                        <thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">ID</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Email</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Qualification</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Classes</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th></tr></thead>
+                        <tbody class="divide-y divide-white/5">${teachers.map(t => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4 text-sm text-gray-300">${t.profiles?.teacher_id_number||'N/A'}</td><td class="px-6 py-4 whitespace-nowrap font-medium">${t.profiles?.full_name||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300">${t.profiles?.email||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300">${t.qualification||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300" id="classes-${t.id}">Loading...</td><td class="px-6 py-4"><button onclick="editTeacher('${t.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button><button onclick="deleteTeacher('${t.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button></td></tr>`).join('')}</tbody>
+                    </table>
+                </div>
+                <!-- Teacher Modal -->
+                <div id="teacher-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div class="flex items-center justify-between mb-6"><h3 id="teacher-modal-title" class="text-xl font-semibold">Add Teacher</h3><button onclick="closeTeacherModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400"><span class="material-symbols-outlined">close</span></button></div>
+                        <form id="teacher-form" class="space-y-5">
+                            <input type="hidden" id="teacher-id">
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Teacher ID Number *</label><input type="text" id="teacher-id-number" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"><p class="text-xs text-gray-500 mt-1">This will be their login ID.</p></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Full Name *</label><input type="text" id="teacher-fullname" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Password *</label><input type="password" id="teacher-password" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"><p class="text-xs text-gray-500 mt-1">Set a password for the teacher to log in.</p></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Qualification</label><input type="text" id="teacher-qualification" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Subject Specialization</label><input type="text" id="teacher-specialization" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
+                            <div><label class="block text-sm font-medium text-gray-300 mb-1">Assign Classes</label><div id="class-checkboxes" class="space-y-2">${allClasses.map(c => `<label class="flex items-center gap-2"><input type="checkbox" value="${c.id}" class="class-checkbox rounded"> ${c.name}</label>`).join('')}</div></div>
+                            <div class="flex justify-end gap-3 pt-2"><button type="button" onclick="closeTeacherModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button><button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button></div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            for (const t of teachers) {
+                const tcData = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${t.id}`);
+                const classNames = tcData.map(tc => tc.classes.name).join(', ') || 'None';
+                const cell = document.getElementById(`classes-${t.id}`);
+                if (cell) cell.textContent = classNames;
+            }
+        }
+
+        async function renderClasses() {
+            const classes = await apiFetch('classes?select=*');
+            mainContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                    <h2 class="text-xl font-semibold">All Classes</h2>
+                    <button onclick="openClassModal()" class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-lg text-sm font-medium transition"><span class="material-symbols-outlined text-lg">add</span> Add Class</button>
+                </div>
+                <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto">
+                    <table class="w-full min-w-[400px]"><thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Section</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Actions</th></tr></thead><tbody class="divide-y divide-white/5">${classes.map(c => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4 font-medium">${c.name}</td><td class="px-6 py-4 text-sm text-gray-300">${c.section||'N/A'}</td><td class="px-6 py-4"><button onclick="editClass('${c.id}')" class="text-accent-400 hover:text-accent-300 text-sm font-medium mr-3">Edit</button><button onclick="deleteClass('${c.id}')" class="text-red-400 hover:text-red-300 text-sm font-medium">Delete</button></td></tr>`).join('')}</tbody></table>
+                </div>
+                <!-- Class Modal -->
+                <div id="class-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div class="bg-brand-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div class="flex items-center justify-between mb-6"><h3 id="class-modal-title" class="text-xl font-semibold">Add Class</h3><button onclick="closeClassModal()" class="p-1 hover:bg-white/5 rounded-lg text-gray-400"><span class="material-symbols-outlined">close</span></button></div>
+                        <form id="class-form" class="space-y-5"><input type="hidden" id="class-id"><div><label class="block text-sm font-medium text-gray-300 mb-1">Class Name</label><input type="text" id="class-name" required class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div><div><label class="block text-sm font-medium text-gray-300 mb-1">Section</label><input type="text" id="class-section" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div><div class="flex justify-end gap-3 pt-2"><button type="button" onclick="closeClassModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button><button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button></div></form>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===================== TEACHER MODULES =====================
+        async function renderMyStudents() {
+            const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = `<div class="text-center text-gray-400 py-8">You are not assigned to any class yet.</div>`;
+                return;
+            }
+            let html = '';
+            for (const cls of teacherClasses) {
+                const students = await apiFetch(`students?select=*&class_id=eq.${cls.class_id}`);
+                html += `<h3 class="text-lg font-semibold mt-6 mb-2">${cls.classes.name}</h3><div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto mb-4"><table class="w-full min-w-[600px]"><thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Photo</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th></tr></thead><tbody class="divide-y divide-white/5">${students.map(s => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4"><img src="${s.photo_url||''}" alt="${s.first_name}" class="w-8 h-8 rounded-full object-cover bg-white/10" onerror="this.style.display='none'"></td><td class="px-6 py-4 whitespace-nowrap font-medium">${s.first_name} ${s.last_name}</td><td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone||'N/A'}</td></tr>`).join('')}</tbody></table></div>`;
+            }
+            mainContent.innerHTML = `<div class="max-w-4xl mx-auto">${html}</div>`;
+        }
+
+        async function renderTeacherAttendance() {
+            const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = `<div class="text-center text-gray-400 py-8">No assigned classes.</div>`;
+                return;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            mainContent.innerHTML = `
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Select Class</label><select id="att-class" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white">${teacherClasses.map(tc => `<option value="${tc.class_id}">${tc.classes.name}</option>`).join('')}</select></div>
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Date</label><input type="date" id="att-date" value="${today}" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"></div>
+                    <button onclick="loadAttendanceForm()" class="w-full py-3 bg-accent-500 rounded-xl font-semibold">Load / Refresh</button>
+                    <div id="attendance-form" class="space-y-3"></div>
+                </div>`;
+            document.getElementById('att-class').addEventListener('change', loadAttendanceForm);
+            loadAttendanceForm();
+        }
+
+        async function loadAttendanceForm() {
+            const classId = document.getElementById('att-class').value;
+            const date = document.getElementById('att-date').value;
+            const students = await apiFetch(`students?select=*&class_id=eq.${classId}`);
+            const existing = await apiFetch(`attendance?select=*&class_id=eq.${classId}&date=eq.${date}`);
+            const map = {};
+            existing.forEach(a => { map[a.student_id] = a.status; });
+            const formDiv = document.getElementById('attendance-form');
+            formDiv.innerHTML = students.map(s => `
+                <div class="flex items-center justify-between bg-brand-900 p-3 rounded-xl border border-white/5">
+                    <span class="font-medium">${s.first_name} ${s.last_name}</span>
+                    <div class="flex gap-3">
+                        <label class="flex items-center gap-1"><input type="radio" name="att-${s.id}" value="present" ${map[s.id]==='present'?'checked':''}> Present</label>
+                        <label class="flex items-center gap-1"><input type="radio" name="att-${s.id}" value="absent" ${map[s.id]==='absent'?'checked':''}> Absent</label>
+                        <label class="flex items-center gap-1"><input type="radio" name="att-${s.id}" value="late" ${map[s.id]==='late'?'checked':''}> Late</label>
+                    </div>
+                </div>
+            `).join('');
+            formDiv.innerHTML += `<button onclick="saveAttendance('${classId}','${date}')" class="mt-4 w-full py-2 bg-accent-500 rounded-xl font-semibold">Save Attendance</button>`;
+        }
+
+        window.saveAttendance = async function(classId, date) {
+            const students = await apiFetch(`students?select=id&class_id=eq.${classId}`);
+            const records = students.map(s => {
+                const radio = document.querySelector(`input[name="att-${s.id}"]:checked`);
+                return radio ? { student_id: s.id, class_id: classId, date, status: radio.value, marked_by: currentUserId } : null;
+            }).filter(Boolean);
+            try {
+                await apiFetch(`attendance?class_id=eq.${classId}&date=eq.${date}`, { method: 'DELETE' });
+                if (records.length) await apiFetch('attendance', { method: 'POST', body: JSON.stringify(records) });
+                alert('Attendance saved!');
+            } catch (err) { alert('Error: ' + err.message); }
+        };
+
+        async function renderTeacherExams() {
+            const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = `<div class="text-center text-gray-400 py-8">No assigned classes.</div>`;
+                return;
+            }
+            const subjects = await apiFetch('subjects?select=*');
+            mainContent.innerHTML = `
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Class</label><select id="exam-class" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white">${teacherClasses.map(tc => `<option value="${tc.class_id}">${tc.classes.name}</option>`).join('')}</select></div>
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Subject</label><select id="exam-subject" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white">${subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div>
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Term</label><select id="exam-term" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"><option value="first">First Term</option><option value="second">Second Term</option><option value="third">Third Term</option></select></div>
+                    <div><label class="block text-sm font-medium text-gray-300 mb-1">Academic Year</label><input type="text" id="exam-year" value="2024/2025" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white"></div>
+                    <button onclick="loadExamForm()" class="w-full py-3 bg-accent-500 rounded-xl font-semibold">Load Students</button>
+                    <div id="exam-form" class="space-y-3"></div>
+                </div>`;
+            document.getElementById('exam-class').addEventListener('change', loadExamForm);
+            loadExamForm();
+        }
+
+        async function loadExamForm() {
+            const classId = document.getElementById('exam-class').value;
+            const subjectId = document.getElementById('exam-subject').value;
+            const term = document.getElementById('exam-term').value;
+            const year = document.getElementById('exam-year').value;
+            const students = await apiFetch(`students?select=id,first_name,last_name&class_id=eq.${classId}`);
+            const existingExams = await apiFetch(`exams?select=*&class_id=eq.${classId}&subject_id=eq.${subjectId}&term=eq.${term}&academic_year=eq.${year}`);
+            const examMap = {};
+            existingExams.forEach(e => { examMap[e.student_id] = e; });
+            const formDiv = document.getElementById('exam-form');
+            formDiv.innerHTML = students.map(s => `
+                <div class="bg-brand-900 p-3 rounded-xl border border-white/5 flex items-center gap-3">
+                    <span class="flex-1 font-medium">${s.first_name} ${s.last_name}</span>
+                    <input type="number" id="score-${s.id}" value="${examMap[s.id]?.score || ''}" placeholder="Score" class="w-24 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-white">
+                    <input type="text" id="grade-${s.id}" value="${examMap[s.id]?.grade || ''}" placeholder="Grade" class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-white">
+                </div>
+            `).join('');
+            formDiv.innerHTML += `<button onclick="saveExamScores('${classId}','${subjectId}','${term}','${year}')" class="mt-4 w-full py-2 bg-accent-500 rounded-xl font-semibold">Save Scores</button>`;
+        }
+
+        window.saveExamScores = async function(classId, subjectId, term, year) {
+            const students = await apiFetch(`students?select=id&class_id=eq.${classId}`);
+            const records = students.map(s => {
+                const score = parseFloat(document.getElementById(`score-${s.id}`)?.value);
+                const grade = document.getElementById(`grade-${s.id}`)?.value;
+                if (isNaN(score)) return null;
+                return { student_id: s.id, subject_id: subjectId, term, academic_year: year, score, grade: grade || null };
+            }).filter(Boolean);
+            try {
+                await apiFetch(`exams?class_id=eq.${classId}&subject_id=eq.${subjectId}&term=eq.${term}&academic_year=eq.${year}`, { method: 'DELETE' });
+                if (records.length) await apiFetch('exams', { method: 'POST', body: JSON.stringify(records) });
+                alert('Scores saved!');
+            } catch (err) { alert('Error: ' + err.message); }
+        };
+
+        // ===================== GLOBAL MODAL FUNCTIONS =====================
+        window.openStudentModal = async function(id = null) {
+            const modal = document.getElementById('student-modal');
+            const title = document.getElementById('student-modal-title');
+            const preview = document.getElementById('image-preview');
+            preview.classList.add('hidden');
+            document.getElementById('student-photo').value = '';
+            if (id) {
+                title.textContent = 'Edit Student';
+                const student = (await apiFetch(`students?id=eq.${id}&limit=1`))[0];
+                if (student) {
+                    document.getElementById('student-id').value = student.id;
+                    document.getElementById('first-name').value = student.first_name;
+                    document.getElementById('last-name').value = student.last_name;
+                    document.getElementById('dob').value = student.date_of_birth || '';
+                    document.getElementById('gender').value = student.gender || '';
+                    document.getElementById('class-id').value = student.class_id || '';
+                    document.getElementById('parent-name').value = student.parent_name || '';
+                    document.getElementById('parent-phone').value = student.parent_phone || '';
+                    document.getElementById('existing-photo-url').value = student.photo_url || '';
+                    if (student.photo_url) { preview.src = student.photo_url; preview.classList.remove('hidden'); }
+                }
+            } else {
+                title.textContent = 'Add Student';
+                ['student-id','first-name','last-name','dob','gender','class-id','parent-name','parent-phone','existing-photo-url'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+        window.closeStudentModal = () => {
+            document.getElementById('student-modal').classList.add('hidden');
+            document.getElementById('student-modal').classList.remove('flex');
+        };
+        window.editStudent = (id) => openStudentModal(id);
+        window.deleteStudent = async (id) => {
+            if (confirm('Delete this student?')) {
+                await apiFetch(`students?id=eq.${id}`, { method: 'DELETE' });
+                loadModule('students');
+            }
+        };
+
+        window.openClassModal = (id = null) => {
+            const modal = document.getElementById('class-modal');
+            const title = document.getElementById('class-modal-title');
+            const form = document.getElementById('class-form');
+            if (id) {
+                title.textContent = 'Edit Class';
+                apiFetch(`classes?id=eq.${id}&limit=1`).then(d => {
+                    const cls = d[0];
+                    document.getElementById('class-id').value = cls.id;
+                    document.getElementById('class-name').value = cls.name;
+                    document.getElementById('class-section').value = cls.section || '';
+                });
+            } else {
+                title.textContent = 'Add Class';
+                form.reset();
+                document.getElementById('class-id').value = '';
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+        window.closeClassModal = () => {
+            document.getElementById('class-modal').classList.add('hidden');
+            document.getElementById('class-modal').classList.remove('flex');
+        };
+        window.editClass = (id) => openClassModal(id);
+        window.deleteClass = async (id) => {
+            if (confirm('Delete this class?')) {
+                await apiFetch(`classes?id=eq.${id}`, { method: 'DELETE' });
+                loadModule('classes');
+            }
+        };
+
+        window.openTeacherModal = function(id = null) {
+            const modal = document.getElementById('teacher-modal');
+            const title = document.getElementById('teacher-modal-title');
+            const form = document.getElementById('teacher-form');
+            if (id) {
+                title.textContent = 'Edit Teacher';
+                apiFetch(`teachers?id=eq.${id}&limit=1`).then(d => {
+                    const t = d[0];
+                    document.getElementById('teacher-id').value = t.id;
+                    document.getElementById('teacher-id-number').value = t.profiles?.teacher_id_number || '';
+                    document.getElementById('teacher-fullname').value = t.profiles?.full_name || '';
+                    document.getElementById('teacher-password').value = '';
+                    document.getElementById('teacher-qualification').value = t.qualification || '';
+                    document.getElementById('teacher-specialization').value = t.subject_specialization || '';
+                    apiFetch(`teacher_classes?select=class_id&teacher_id=eq.${t.id}`).then(tcData => {
+                        document.querySelectorAll('.class-checkbox').forEach(cb => {
+                            cb.checked = tcData.some(tc => tc.class_id === cb.value);
+                        });
+                    });
+                });
+            } else {
+                title.textContent = 'Add Teacher';
+                form.reset();
+                document.getElementById('teacher-id').value = '';
+                document.querySelectorAll('.class-checkbox').forEach(cb => cb.checked = false);
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+        window.closeTeacherModal = () => {
+            document.getElementById('teacher-modal').classList.add('hidden');
+            document.getElementById('teacher-modal').classList.remove('flex');
+        };
+        window.editTeacher = (id) => openTeacherModal(id);
+        window.deleteTeacher = async (id) => {
+            if (confirm('Remove this teacher?')) {
+                await apiFetch(`teachers?id=eq.${id}`, { method: 'DELETE' });
+                loadModule('teachers');
+            }
+        };
+
+        // ===================== FORM SUBMISSIONS =====================
+        document.addEventListener('submit', async (e) => {
+            if (e.target.id === 'class-form') {
+                e.preventDefault();
+                const id = document.getElementById('class-id').value;
+                const data = { name: document.getElementById('class-name').value, section: document.getElementById('class-section').value };
+                if (id) await apiFetch(`classes?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+                else await apiFetch('classes', { method: 'POST', body: JSON.stringify(data) });
+                closeClassModal(); loadModule('classes');
+            }
+            if (e.target.id === 'student-form') {
+                e.preventDefault();
+                const id = document.getElementById('student-id').value;
+                const photoInput = document.getElementById('student-photo');
+                const existing = document.getElementById('existing-photo-url').value;
+                let photoUrl = existing;
+                if (photoInput.files.length > 0) {
+                    try { photoUrl = await uploadImage(photoInput.files[0]); } catch (err) { alert('Upload error: ' + err.message); return; }
+                }
+                const data = {
+                    first_name: document.getElementById('first-name').value,
+                    last_name: document.getElementById('last-name').value,
+                    date_of_birth: document.getElementById('dob').value || null,
+                    gender: document.getElementById('gender').value,
+                    class_id: document.getElementById('class-id').value,
+                    parent_name: document.getElementById('parent-name').value,
+                    parent_phone: document.getElementById('parent-phone').value,
+                    photo_url: photoUrl || null
+                };
+                if (id) await apiFetch(`students?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+                else await apiFetch('students', { method: 'POST', body: JSON.stringify(data) });
+                closeStudentModal(); loadModule('students');
+            }
+            if (e.target.id === 'teacher-form') {
+                e.preventDefault();
+                const teacherId = document.getElementById('teacher-id').value;
+                const teacherIdNumber = document.getElementById('teacher-id-number').value.trim();
+                const fullName = document.getElementById('teacher-fullname').value.trim();
+                const password = document.getElementById('teacher-password').value;
+                const qualification = document.getElementById('teacher-qualification').value;
+                const specialization = document.getElementById('teacher-specialization').value;
+                const selectedClasses = Array.from(document.querySelectorAll('.class-checkbox:checked')).map(cb => cb.value);
+
+                let userId = teacherId;
+                if (!teacherId) {
+                    // Create user via fetch
+                    const signUpRes = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                        body: JSON.stringify({
+                            email: `tch-${teacherIdNumber.toLowerCase().replace(/\s+/g, '-')}@falaluschools.internal`,
+                            password,
+                            options: { data: { full_name: fullName } }
+                        })
+                    });
+                    const signUpData = await signUpRes.json();
+                    if (!signUpRes.ok) {
+                        alert('Error creating teacher account: ' + (signUpData.msg || signUpData.message));
+                        return;
+                    }
+                    userId = signUpData.id;
+                }
+
+                const teacherData = { id: userId, qualification, subject_specialization: specialization };
+                if (teacherId) await apiFetch(`teachers?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify(teacherData) });
+                else await apiFetch('teachers', { method: 'POST', body: JSON.stringify(teacherData) });
+
+                await apiFetch(`profiles?id=eq.${userId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ role: 'teacher', full_name: fullName, teacher_id_number: teacherIdNumber })
                 });
 
-                if (!res.ok) {
-                    const errText = await res.text();
-                    log('❌ Profile fetch error: ' + errText);
-                    document.getElementById('main-content').innerHTML = `<p style="color:red">Error loading profile: ${errText}</p>`;
-                    return;
-                }
+                if (teacherId) await apiFetch(`teacher_classes?teacher_id=eq.${userId}`, { method: 'DELETE' });
+                const assignments = selectedClasses.map(cid => ({ teacher_id: userId, class_id: cid }));
+                if (assignments.length) await apiFetch('teacher_classes', { method: 'POST', body: JSON.stringify(assignments) });
 
-                const profiles = await res.json();
-                const profile = profiles[0];
-
-                if (!profile) {
-                    log('❌ Profile not found');
-                    document.getElementById('main-content').innerHTML = `<p style="color:red">Profile not found for your account. Please contact the administrator.</p>`;
-                    return;
-                }
-
-                const name = profile.full_name || 'User';
-                log(`✅ Welcome, ${name} (${profile.role})`);
-                document.getElementById('main-content').innerHTML = `
-                    <div style="text-align:center">
-                        <h2>Welcome, ${name}!</h2>
-                        <p>Your role: ${profile.role}</p>
-                        <p>Dashboard modules will appear here once we rebuild them.</p>
-                        <p><a href="#" onclick="localStorage.clear(); window.location.replace('login.html')">Logout</a></p>
-                    </div>`;
-            } catch (err) {
-                log('❌ Unexpected error: ' + err.message);
-                document.getElementById('main-content').innerHTML = `<p style="color:red">Unexpected error: ${err.message}</p>`;
+                closeTeacherModal(); loadModule('teachers');
             }
-        }
+        });
 
-        fetchProfile();
+        // Mobile menu
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        document.getElementById('menu-toggle').addEventListener('click', () => {
+            sidebar.classList.toggle('open'); overlay.classList.toggle('show');
+        });
+        function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+        overlay.addEventListener('click', closeSidebar);
+
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            localStorage.clear();
+            window.location.replace('login.html');
+        });
+
+        init();
     </script>
 </body>
 </html>
