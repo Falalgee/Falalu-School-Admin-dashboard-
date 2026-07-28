@@ -9,12 +9,8 @@
             background: #060e1a;
             color: white;
             font-family: 'Inter', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
             margin: 0;
-            padding: 16px;
+            padding: 0;
         }
         #status-bar {
             position: fixed;
@@ -27,26 +23,21 @@
             font-size: 12px;
             padding: 6px 10px;
             z-index: 999;
-        }
-        .card {
-            background: #0a1628;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px;
-            padding: 32px;
-            max-width: 500px;
-            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         a { color: #93c5fd; }
+        .container { padding: 2rem; min-height: 100vh; }
+        .loading { text-align: center; padding-top: 20vh; }
     </style>
 </head>
 <body>
     <div id="status-bar">⏳ Initializing...</div>
-    <div id="main-content" class="card">
-        <p>Loading…</p>
-    </div>
+    <main id="main-content" class="container loading">
+        <p>Loading dashboard…</p>
+    </main>
 
-    <!-- Supabase SDK -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
         const statusEl = document.getElementById('status-bar');
         function log(msg) {
@@ -54,71 +45,58 @@
             console.log(msg);
         }
 
-        // Step 1: check SDK
-        log('✅ SDK loaded');
-        if (typeof window.supabase === 'undefined') {
-            log('❌ Supabase SDK not available');
-            document.getElementById('main-content').innerHTML = '<p style="color:red">Supabase SDK failed to load. Check your internet connection.</p>';
-            throw new Error('SDK missing');
-        }
-
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
-        const supabase = window.supabase.createClient(SUPABASE_URL, ANON_KEY);
 
-        // Read token and userId from URL
+        // Get token and userId from URL
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const userId = urlParams.get('userId');
 
         if (!token || !userId) {
             log('❌ Missing token or userId');
-            document.getElementById('main-content').innerHTML = '<p style="color:red">No login token found. Please <a href="login.html">log in</a> again.</p>';
+            document.getElementById('main-content').innerHTML = '<p style="color:red">No login token found. Please <a href="login.html">log in</a>.</p>';
             throw new Error('Missing parameters');
         }
 
-        log('✅ Token and userId present');
+        log('✅ Token found. Fetching profile…');
 
-        // Step 2: fetch profile using Supabase client
-        async function checkProfile() {
-            log('Fetching profile…');
+        // Fetch profile using plain fetch (same as login)
+        async function fetchProfile() {
             try {
-                const { data: profiles, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', userId)
-                    .single();
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
+                    headers: {
+                        'apikey': ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
 
-                if (error) {
-                    log('❌ Profile fetch error: ' + error.message);
-                    document.getElementById('main-content').innerHTML = `<p style="color:red">Error loading profile: ${error.message}</p>`;
+                if (!res.ok) {
+                    const errText = await res.text();
+                    log('❌ Profile fetch error: ' + errText);
+                    document.getElementById('main-content').innerHTML = `<p style="color:red">Error loading profile: ${errText}</p>`;
                     return;
                 }
 
-                if (!profiles) {
+                const profiles = await res.json();
+                const profile = profiles[0];
+
+                if (!profile) {
                     log('❌ Profile not found for user ' + userId);
-                    document.getElementById('main-content').innerHTML = `<p style="color:red">Profile not found. Your user ID: ${userId}</p><p>Run the SQL to add your profile with role 'admin'.</p>`;
+                    document.getElementById('main-content').innerHTML = `<p style="color:red">Profile not found.</p><p>Your user ID: ${userId}</p><p>Run the SQL to add your profile with role 'admin'.</p>`;
                     return;
                 }
 
-                const name = profiles.full_name || 'User';
-                log(`✅ Welcome, ${name} (${profiles.role})`);
-                document.getElementById('main-content').innerHTML = `<h2>Dashboard</h2><p>Welcome, <strong>${name}</strong>!</p><p>Your role: ${profiles.role}</p><p>The dashboard is ready. Modules can be added now.</p>`;
+                const name = profile.full_name || 'User';
+                log(`✅ Welcome, ${name} (${profile.role})`);
+                document.getElementById('main-content').innerHTML = `<h2>Dashboard</h2><p>Welcome, <strong>${name}</strong>!</p><p>Your role: ${profile.role}</p><p>The dashboard is ready. Modules will be added now.</p>`;
             } catch (err) {
                 log('❌ Unexpected error: ' + err.message);
                 document.getElementById('main-content').innerHTML = `<p style="color:red">Unexpected error: ${err.message}</p>`;
             }
         }
 
-        // Use the token for the Supabase client session
-        supabase.auth.setSession({ access_token: token, refresh_token: '' }).then(({ error }) => {
-            if (error) {
-                log('❌ Invalid token: ' + error.message);
-                document.getElementById('main-content').innerHTML = '<p style="color:red">Your session has expired. Please log in again.</p>';
-                return;
-            }
-            checkProfile();
-        });
+        fetchProfile();
     </script>
 </body>
 </html>
