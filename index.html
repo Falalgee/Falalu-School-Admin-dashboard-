@@ -284,7 +284,7 @@
             });
         }
 
-        // ========== FIXED TEACHERS MODULE ==========
+        // ========== TEACHERS MODULE ==========
         async function renderTeachers() {
             const [teachers, allProfiles, allClasses] = await Promise.all([
                 apiFetch('teachers?select=*'),
@@ -539,7 +539,9 @@
                             const errMsg = signUpData.message || signUpData.msg || 'Unknown error';
                             throw new Error('Account creation failed: ' + errMsg);
                         }
-                        userId = signUpData.id;
+                        // The user ID is inside the 'user' object
+                        userId = signUpData.user?.id || signUpData.id;
+                        if (!userId) throw new Error('Failed to retrieve user ID after signup');
                     }
 
                     const teacherData = { id: userId, qualification, subject_specialization: specialization };
