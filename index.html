@@ -44,6 +44,7 @@
 
     <div id="sidebar-overlay" class="sidebar-overlay fixed inset-0 bg-black/50 z-20" onclick="closeSidebar()"></div>
 
+    <!-- Sidebar -->
     <aside id="sidebar" class="sidebar w-64 bg-brand-900 border-r border-white/5 flex flex-col fixed h-full z-30 inset-y-0 left-0 lg:relative lg:translate-x-0">
         <div class="h-20 flex items-center px-6 border-b border-white/5">
             <div class="flex items-center gap-3">
@@ -51,7 +52,9 @@
                 <div><h1 class="font-display text-lg font-bold">Falalu</h1><p class="text-xs text-gray-400" id="sidebar-role">Admin</p></div>
             </div>
         </div>
-        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto" id="sidebar-nav"></nav>
+        <nav class="flex-1 py-6 px-3 space-y-1 overflow-y-auto" id="sidebar-nav">
+            <!-- Filled by buildSidebar -->
+        </nav>
         <div class="p-4 border-t border-white/5">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-full bg-accent-500/20 flex items-center justify-center text-accent-400 font-semibold text-sm" id="user-avatar">A</div>
@@ -63,6 +66,7 @@
         </div>
     </aside>
 
+    <!-- Main content -->
     <div class="flex-1 flex flex-col min-h-screen lg:ml-64">
         <header class="sticky top-0 z-10 bg-brand-900/95 backdrop-blur-sm border-b border-white/5">
             <div class="flex items-center justify-between h-16 px-4">
@@ -147,10 +151,22 @@
                     <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="notices"><span class="material-symbols-outlined text-xl">campaign</span> Notices</a>
                 `;
             } else {
+                // TEACHER SIDEBAR
                 links = `
-                    <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="my-students"><span class="material-symbols-outlined text-xl">people</span> My Students</a>
+                    <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-dashboard"><span class="material-symbols-outlined text-xl">dashboard</span> Dashboard</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-classes"><span class="material-symbols-outlined text-xl">class</span> My Classes</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-students"><span class="material-symbols-outlined text-xl">people</span> Student Management</a>
                     <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-attendance"><span class="material-symbols-outlined text-xl">checklist</span> Attendance</a>
-                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-exams"><span class="material-symbols-outlined text-xl">quiz</span> Exam Scores</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-exams"><span class="material-symbols-outlined text-xl">quiz</span> Assessment & Results</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-lesson-notes"><span class="material-symbols-outlined text-xl">edit_note</span> Lesson Notes</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-scheme"><span class="material-symbols-outlined text-xl">book</span> Scheme of Work</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-assignments"><span class="material-symbols-outlined text-xl">assignment</span> Assignments</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-timetable"><span class="material-symbols-outlined text-xl">calendar_month</span> Timetable</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-behaviour"><span class="material-symbols-outlined text-xl">sentiment_satisfied</span> Behaviour</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-reports"><span class="material-symbols-outlined text-xl">analytics</span> Reports</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-communication"><span class="material-symbols-outlined text-xl">mail</span> Communication</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-downloads"><span class="material-symbols-outlined text-xl">download</span> Downloads</a>
+                    <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-300" data-module="teacher-profile"><span class="material-symbols-outlined text-xl">settings</span> Profile & Settings</a>
                 `;
             }
             nav.innerHTML = links;
@@ -176,7 +192,7 @@
                 document.getElementById('sidebar-role').textContent = userRole === 'admin' ? 'Admin' : 'Teacher';
                 buildSidebar(userRole);
                 if (userRole === 'admin') loadModule('dashboard');
-                else loadModule('my-students');
+                else loadModule('teacher-dashboard');
             } catch (e) {
                 log('Error: ' + e.message);
                 document.getElementById('main-content').innerHTML = `<div class="text-center text-red-400 p-4">Error loading profile: ${e.message}</div>`;
@@ -197,26 +213,52 @@
                 exams: 'Examinations',
                 fees: 'Fee Management',
                 notices: 'Notice Board',
-                'my-students': 'My Students',
+                'teacher-dashboard': 'Teacher Dashboard',
+                'teacher-classes': 'My Classes',
+                'teacher-students': 'Student Management',
                 'teacher-attendance': 'Take Attendance',
-                'teacher-exams': 'Exam Scores'
+                'teacher-exams': 'Assessment & Results',
+                'teacher-lesson-notes': 'Lesson Notes',
+                'teacher-scheme': 'Scheme of Work',
+                'teacher-assignments': 'Assignments',
+                'teacher-timetable': 'Timetable',
+                'teacher-behaviour': 'Behaviour & Remarks',
+                'teacher-reports': 'Reports & Analytics',
+                'teacher-communication': 'Communication',
+                'teacher-downloads': 'Downloads',
+                'teacher-profile': 'Profile & Settings'
             };
             moduleTitle.textContent = titles[module] || module;
             mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">Loading ${titles[module]}...</div>`;
+
             try {
                 switch (module) {
+                    // Admin modules
                     case 'dashboard': await renderDashboard(); break;
                     case 'students': await renderStudents(); break;
                     case 'teachers': await renderTeachers(); break;
                     case 'classes': await renderClasses(); break;
-                    case 'my-students': await renderMyStudents(); break;
+                    // Teacher modules
+                    case 'teacher-dashboard': await renderTeacherDashboard(); break;
+                    case 'teacher-classes': await renderTeacherClasses(); break;
+                    case 'teacher-students': await renderTeacherStudents(); break;
                     case 'teacher-attendance': await renderTeacherAttendance(); break;
                     case 'teacher-exams': await renderTeacherExams(); break;
+                    case 'teacher-lesson-notes': await renderTeacherLessonNotes(); break;
+                    case 'teacher-scheme': await renderTeacherScheme(); break;
+                    case 'teacher-assignments': await renderTeacherAssignments(); break;
+                    case 'teacher-timetable': await renderTeacherTimetable(); break;
+                    case 'teacher-behaviour': await renderTeacherBehaviour(); break;
+                    case 'teacher-reports': await renderTeacherReports(); break;
+                    case 'teacher-communication': await renderTeacherCommunication(); break;
+                    case 'teacher-downloads': await renderTeacherDownloads(); break;
+                    case 'teacher-profile': await renderTeacherProfile(); break;
                     default: mainContent.innerHTML = `<div class="flex items-center justify-center h-64 text-gray-400">${titles[module]} module coming soon.</div>`;
                 }
             } catch (e) {
                 mainContent.innerHTML = `<div class="text-center text-red-400 p-4">Error: ${e.message}</div>`;
             }
+
             document.querySelectorAll('.sidebar-link').forEach(l => {
                 l.classList.remove('active');
                 if (l.dataset.module === module) l.classList.add('active');
@@ -224,7 +266,7 @@
             if (window.innerWidth < 1024) closeSidebar();
         }
 
-        // ===================== ADMIN MODULES =====================
+        // ===================== ADMIN MODULES (keep existing) =====================
         async function renderDashboard() {
             const count = async (table) => {
                 try { const data = await apiFetch(`${table}?select=id`); return Array.isArray(data) ? data.length : 0; } catch (e) { return 0; }
@@ -284,7 +326,7 @@
             });
         }
 
-        // ========== TEACHERS MODULE ==========
+        // ========== TEACHERS MODULE (FIXED) ==========
         async function renderTeachers() {
             const [teachers, allProfiles, allClasses] = await Promise.all([
                 apiFetch('teachers?select=*'),
@@ -323,7 +365,6 @@
                     </div>
                 </div>
             `;
-            // Load class names
             for (const t of teachers) {
                 const tcData = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${t.id}`);
                 const classNames = tcData.map(tc => tc.classes?.name || 'Unknown').join(', ') || 'None';
@@ -374,15 +415,122 @@
         }
 
         // ===================== TEACHER MODULES =====================
-        async function renderMyStudents() {
+        async function renderTeacherDashboard() {
             const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
-            if (teacherClasses.length === 0) { mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">You are not assigned to any class yet.</div>'; return; }
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">You are not assigned to any class yet.</div>';
+                return;
+            }
+            let totalStudents = 0;
+            const classIds = teacherClasses.map(tc => tc.class_id);
+            for (const cid of classIds) {
+                const students = await apiFetch(`students?select=id&class_id=eq.${cid}`);
+                totalStudents += students.length;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            let presentToday = 0, absentToday = 0;
+            for (const cid of classIds) {
+                const attendance = await apiFetch(`attendance?select=status&class_id=eq.${cid}&date=eq.${today}`);
+                attendance.forEach(a => {
+                    if (a.status === 'present') presentToday++;
+                    else if (a.status === 'absent') absentToday++;
+                });
+            }
+            let pendingAttendance = 0;
+            for (const cid of classIds) {
+                const count = await apiFetch(`attendance?select=id&class_id=eq.${cid}&date=eq.${today}`);
+                if (count.length === 0) pendingAttendance++;
+            }
+            const notices = await apiFetch('notices?select=*&order=created_at.desc&limit=5').catch(() => []);
+
+            mainContent.innerHTML = `
+                <div class="space-y-8">
+                    <div class="bg-gradient-to-r from-accent-500/20 to-transparent p-6 rounded-2xl border border-white/5">
+                        <h2 class="text-2xl font-bold">Welcome back, ${document.getElementById('user-name').textContent}!</h2>
+                        <p class="text-gray-400 mt-2">Here's your overview for today.</p>
+                    </div>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">groups</span><h3 class="text-2xl font-bold mt-2">${teacherClasses.length}</h3><p class="text-sm text-gray-400">Assigned Classes</p></div>
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-accent-400">people</span><h3 class="text-2xl font-bold mt-2">${totalStudents}</h3><p class="text-sm text-gray-400">Total Students</p></div>
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-green-400">check_circle</span><h3 class="text-2xl font-bold mt-2">${presentToday}</h3><p class="text-sm text-gray-400">Present Today</p></div>
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5 text-center"><span class="material-symbols-outlined text-3xl text-yellow-400">pending</span><h3 class="text-2xl font-bold mt-2">${pendingAttendance}</h3><p class="text-sm text-gray-400">Pending Attendance</p></div>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5">
+                            <h3 class="text-lg font-semibold mb-3">📢 Recent Announcements</h3>
+                            ${notices.length ? notices.map(n => `<p class="text-sm text-gray-300 py-1 border-b border-white/5">${n.title} – <span class="text-gray-500">${new Date(n.created_at).toLocaleDateString()}</span></p>`).join('') : '<p class="text-sm text-gray-500">No announcements.</p>'}
+                        </div>
+                        <div class="bg-brand-900 rounded-2xl p-5 border border-white/5">
+                            <h3 class="text-lg font-semibold mb-3">⚡ Quick Actions</h3>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button onclick="loadModule('teacher-attendance')" class="bg-accent-500/20 hover:bg-accent-500/30 p-3 rounded-xl text-sm">Take Attendance</button>
+                                <button onclick="loadModule('teacher-exams')" class="bg-accent-500/20 hover:bg-accent-500/30 p-3 rounded-xl text-sm">Enter Scores</button>
+                                <button onclick="loadModule('teacher-students')" class="bg-accent-500/20 hover:bg-accent-500/30 p-3 rounded-xl text-sm">View Students</button>
+                                <button onclick="loadModule('teacher-timetable')" class="bg-accent-500/20 hover:bg-accent-500/30 p-3 rounded-xl text-sm">My Timetable</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderTeacherClasses() {
+            const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">No assigned classes.</div>';
+                return;
+            }
             let html = '';
             for (const cls of teacherClasses) {
                 const students = await apiFetch(`students?select=*&class_id=eq.${cls.class_id}`);
-                html += `<h3 class="text-lg font-semibold mt-6 mb-2">${cls.classes.name}</h3><div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto mb-4"><table class="w-full min-w-[600px]"><thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Photo</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th></tr></thead><tbody class="divide-y divide-white/5">${students.map(s => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4"><img src="${s.photo_url||''}" alt="${s.first_name}" class="w-8 h-8 rounded-full object-cover bg-white/10" onerror="this.style.display='none'"></td><td class="px-6 py-4 whitespace-nowrap font-medium">${s.first_name} ${s.last_name}</td><td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone||'N/A'}</td></tr>`).join('')}</tbody></table></div>`;
+                html += `
+                    <div class="bg-brand-900 rounded-2xl border border-white/5 p-5 mb-4">
+                        <h3 class="text-lg font-semibold">${cls.classes.name}</h3>
+                        <p class="text-sm text-gray-400 mb-3">${students.length} students</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[600px]">
+                                <thead><tr class="border-b border-white/5"><th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th></tr></thead>
+                                <tbody class="divide-y divide-white/5">
+                                    ${students.map(s => `<tr><td class="px-4 py-2">${s.first_name} ${s.last_name}</td><td class="px-4 py-2 text-sm text-gray-300">${s.parent_phone||'N/A'}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
             }
             mainContent.innerHTML = `<div class="max-w-4xl mx-auto">${html}</div>`;
+        }
+
+        async function renderTeacherStudents() {
+            const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
+            if (teacherClasses.length === 0) {
+                mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">No assigned classes.</div>';
+                return;
+            }
+            let html = '<div class="max-w-4xl mx-auto"><input type="text" id="student-search" placeholder="Search students..." class="w-full mb-4 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none">';
+            for (const cls of teacherClasses) {
+                const students = await apiFetch(`students?select=*&class_id=eq.${cls.class_id}`);
+                html += `
+                    <h3 class="text-lg font-semibold mt-6 mb-2">${cls.classes.name}</h3>
+                    <div class="bg-brand-900 rounded-2xl border border-white/5 overflow-x-auto mb-4">
+                        <table class="w-full min-w-[600px]">
+                            <thead><tr class="border-b border-white/5"><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Photo</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Name</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Parent Phone</th><th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase">Gender</th></tr></thead>
+                            <tbody class="divide-y divide-white/5">
+                                ${students.map(s => `<tr class="hover:bg-white/[0.02]"><td class="px-6 py-4"><img src="${s.photo_url||''}" alt="${s.first_name}" class="w-8 h-8 rounded-full object-cover bg-white/10" onerror="this.style.display='none'"></td><td class="px-6 py-4 whitespace-nowrap font-medium">${s.first_name} ${s.last_name}</td><td class="px-6 py-4 text-sm text-gray-300">${s.parent_phone||'N/A'}</td><td class="px-6 py-4 text-sm text-gray-300">${s.gender||'N/A'}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            mainContent.innerHTML = html;
+            document.getElementById('student-search').addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                document.querySelectorAll('tbody tr').forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(term) ? '' : 'none';
+                });
+            });
         }
 
         async function renderTeacherAttendance() {
@@ -443,7 +591,38 @@
             alert('Scores saved!');
         };
 
-        // ===================== GLOBAL MODAL FUNCTIONS =====================
+        // ===================== PLACEHOLDER MODULES =====================
+        async function renderTeacherLessonNotes() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">edit_note</span><h2 class="text-xl font-semibold mt-4">Lesson Notes</h2><p class="text-gray-400 mt-2">Create and manage your lesson notes.</p><button class="mt-6 px-6 py-3 bg-accent-500 rounded-xl font-semibold" onclick="alert('Coming soon!')">Create New Note</button></div>`;
+        }
+        async function renderTeacherScheme() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">book</span><h2 class="text-xl font-semibold mt-4">Scheme of Work</h2><p class="text-gray-400 mt-2">View approved curriculum and track completed topics.</p></div>`;
+        }
+        async function renderTeacherAssignments() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">assignment</span><h2 class="text-xl font-semibold mt-4">Assignments & Homework</h2><p class="text-gray-400 mt-2">Create and manage student assignments.</p></div>`;
+        }
+        async function renderTeacherTimetable() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">calendar_month</span><h2 class="text-xl font-semibold mt-4">My Timetable</h2><p class="text-gray-400 mt-2">Teaching schedule, exam timetable, and school calendar.</p></div>`;
+        }
+        async function renderTeacherBehaviour() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">sentiment_satisfied</span><h2 class="text-xl font-semibold mt-4">Behaviour & Remarks</h2><p class="text-gray-400 mt-2">Record student behaviour and add commendations.</p></div>`;
+        }
+        async function renderTeacherReports() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">analytics</span><h2 class="text-xl font-semibold mt-4">Reports & Analytics</h2><p class="text-gray-400 mt-2">Class performance, attendance reports, and student progress.</p></div>`;
+        }
+        async function renderTeacherCommunication() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">mail</span><h2 class="text-xl font-semibold mt-4">Communication</h2><p class="text-gray-400 mt-2">Messages from school management and important notifications.</p></div>`;
+        }
+        async function renderTeacherDownloads() {
+            mainContent.innerHTML = `<div class="max-w-2xl mx-auto text-center py-12"><span class="material-symbols-outlined text-5xl text-accent-400">download</span><h2 class="text-xl font-semibold mt-4">Downloads</h2><p class="text-gray-400 mt-2">School circulars, academic calendar, and staff handbook.</p></div>`;
+        }
+        async function renderTeacherProfile() {
+            const profiles = await apiFetch(`profiles?id=eq.${currentUserId}&select=*`);
+            const profile = profiles[0];
+            mainContent.innerHTML = `<div class="max-w-md mx-auto bg-brand-900 rounded-2xl border border-white/5 p-6"><h2 class="text-xl font-semibold mb-4">Profile</h2><p><strong>Name:</strong> ${profile.full_name || 'N/A'}</p><p><strong>Teacher ID:</strong> ${profile.teacher_id_number || 'N/A'}</p><p><strong>Email:</strong> ${profile.email || 'N/A'}</p><button onclick="alert('Change password coming soon')" class="mt-4 px-4 py-2 bg-accent-500 rounded-xl">Change Password</button></div>`;
+        }
+
+        // ===================== GLOBAL MODAL FUNCTIONS (Students, Classes) =====================
         window.openStudentModal = async function(id = null) {
             const modal = document.getElementById('student-modal');
             const title = document.getElementById('student-modal-title');
@@ -539,26 +718,19 @@
                             const errMsg = signUpData.message || signUpData.msg || 'Unknown error';
                             throw new Error('Account creation failed: ' + errMsg);
                         }
-                        // The user ID is inside the 'user' object
                         userId = signUpData.user?.id || signUpData.id;
                         if (!userId) throw new Error('Failed to retrieve user ID after signup');
                     }
 
                     const teacherData = { id: userId, qualification, subject_specialization: specialization };
-                    if (teacherId) {
-                        await apiFetch(`teachers?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify(teacherData) });
-                    } else {
-                        await apiFetch('teachers', { method: 'POST', body: JSON.stringify(teacherData) });
-                    }
+                    if (teacherId) await apiFetch(`teachers?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify(teacherData) });
+                    else await apiFetch('teachers', { method: 'POST', body: JSON.stringify(teacherData) });
 
-                    await apiFetch(`profiles?id=eq.${userId}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ role: 'teacher', full_name: fullName, teacher_id_number: teacherIdNumber })
-                    });
+                    await apiFetch(`profiles?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify({ role: 'teacher', full_name: fullName, teacher_id_number: teacherIdNumber }) });
 
                     if (teacherId) await apiFetch(`teacher_classes?teacher_id=eq.${userId}`, { method: 'DELETE' });
                     const assignments = selectedClasses.map(cid => ({ teacher_id: userId, class_id: cid }));
-                    if (assignments.length > 0) await apiFetch('teacher_classes', { method: 'POST', body: JSON.stringify(assignments) });
+                    if (assignments.length) await apiFetch('teacher_classes', { method: 'POST', body: JSON.stringify(assignments) });
 
                     closeTeacherModal(); loadModule('teachers');
                 } catch (err) {
