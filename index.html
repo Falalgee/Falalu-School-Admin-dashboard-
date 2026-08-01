@@ -35,6 +35,7 @@
         }
         #status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #000; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px 10px; z-index: 999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #image-preview { max-width: 200px; max-height: 200px; border-radius: 0.75rem; margin-top: 0.5rem; }
+        .error-message { background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.3); color: #ff6666; padding: 10px; border-radius: 8px; margin-top: 8px; display: none; }
     </style>
 </head>
 <body class="bg-brand-950 text-white font-body antialiased">
@@ -86,7 +87,6 @@
     </div>
 
     <script>
-        // ===================== CONFIG =====================
         const SUPABASE_URL = 'https://hfdyznlnxfrrlqdziqpn.supabase.co';
         const ANON_KEY = 'sb_publishable_Dh5sg8xSYwsWtgttyCe2Zw_L_le2Yxk';
         let authToken = localStorage.getItem('supabase_token') || '';
@@ -96,12 +96,8 @@
         const statusEl = document.getElementById('status-bar');
         function log(msg) { statusEl.textContent = msg; console.log(msg); }
 
-        if (!authToken || !currentUserId) {
-            log('❌ No session. Redirecting...');
-            window.location.replace('login.html');
-        }
+        if (!authToken || !currentUserId) { window.location.replace('login.html'); }
 
-        // ===================== FETCH HELPERS =====================
         async function apiFetch(path, options = {}) {
             const url = `${SUPABASE_URL}/rest/v1/${path}`;
             const headers = {
@@ -136,7 +132,6 @@
             return `${SUPABASE_URL}/storage/v1/object/public/student-photos/${fileName}`;
         }
 
-        // ===================== SIDEBAR =====================
         function buildSidebar(role) {
             const nav = document.getElementById('sidebar-nav');
             let links = '';
@@ -164,7 +159,6 @@
             });
         }
 
-        // ===================== INIT =====================
         async function init() {
             log('Fetching profile...');
             try {
@@ -323,6 +317,7 @@
                             <div><label class="block text-sm font-medium text-gray-300 mb-1">Qualification</label><input type="text" id="teacher-qualification" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
                             <div><label class="block text-sm font-medium text-gray-300 mb-1">Subject Specialization</label><input type="text" id="teacher-specialization" class="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-accent-500 outline-none"></div>
                             <div><label class="block text-sm font-medium text-gray-300 mb-1">Assign Classes</label><div id="class-checkboxes" class="space-y-2">${allClasses.map(c => `<label class="flex items-center gap-2"><input type="checkbox" value="${c.id}" class="class-checkbox rounded"> ${c.name}</label>`).join('')}</div></div>
+                            <div id="teacher-form-error" class="error-message"></div>
                             <div class="flex justify-end gap-3 pt-2"><button type="button" onclick="closeTeacherModal()" class="px-5 py-2.5 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">Cancel</button><button type="submit" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 rounded-xl text-sm font-medium transition">Save</button></div>
                         </form>
                     </div>
@@ -337,7 +332,6 @@
             }
         }
 
-        // ========== FIXED TEACHER MODAL ==========
         window.openTeacherModal = function(id = null) {
             const modal = document.getElementById('teacher-modal');
             const title = document.getElementById('teacher-modal-title');
@@ -391,7 +385,6 @@
             mainContent.innerHTML = `<div class="max-w-4xl mx-auto">${html}</div>`;
         }
 
-        // ==== ATTENDANCE ====
         async function renderTeacherAttendance() {
             const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
             if (teacherClasses.length === 0) { mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">No assigned classes.</div>'; return; }
@@ -420,7 +413,6 @@
             alert('Attendance saved!');
         };
 
-        // ==== EXAM SCORES ====
         async function renderTeacherExams() {
             const teacherClasses = await apiFetch(`teacher_classes?select=class_id,classes(name)&teacher_id=eq.${currentUserId}`);
             if (teacherClasses.length === 0) { mainContent.innerHTML = '<div class="text-center text-gray-400 py-8">No assigned classes.</div>'; return; }
@@ -451,7 +443,7 @@
             alert('Scores saved!');
         };
 
-        // ===================== GLOBAL MODAL FUNCTIONS (Students, Classes) =====================
+        // ===================== GLOBAL MODAL FUNCTIONS =====================
         window.openStudentModal = async function(id = null) {
             const modal = document.getElementById('student-modal');
             const title = document.getElementById('student-modal-title');
@@ -519,6 +511,11 @@
             }
             if (e.target.id === 'teacher-form') {
                 e.preventDefault();
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                submitBtn.disabled = true; submitBtn.textContent = 'Saving...';
+                const errorDiv = document.getElementById('teacher-form-error');
+                if (errorDiv) errorDiv.style.display = 'none';
+
                 const teacherId = document.getElementById('teacher-id').value;
                 const teacherIdNumber = document.getElementById('teacher-id-number').value.trim();
                 const fullName = document.getElementById('teacher-fullname').value.trim();
@@ -528,34 +525,50 @@
                 const selectedClasses = Array.from(document.querySelectorAll('.class-checkbox:checked')).map(cb => cb.value);
 
                 let userId = teacherId;
-                if (!teacherId) {
-                    const randomSuffix = Math.random().toString(36).substring(2, 8);
-                    const email = `tch-${teacherIdNumber.toLowerCase().replace(/\s+/g, '-')}-${randomSuffix}@falaluschools.internal`;
-                    const signUpRes = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
-                        body: JSON.stringify({ email, password })
-                    });
-                    const signUpData = await signUpRes.json();
-                    if (!signUpRes.ok) {
-                        const errMsg = signUpData.message || signUpData.msg || 'Unknown error';
-                        alert('Error creating teacher account: ' + errMsg);
-                        return;
+                try {
+                    if (!teacherId) {
+                        const randomSuffix = Math.random().toString(36).substring(2, 8);
+                        const email = `tch-${teacherIdNumber.toLowerCase().replace(/\s+/g, '-')}-${randomSuffix}@falaluschools.internal`;
+                        const signUpRes = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                            body: JSON.stringify({ email, password })
+                        });
+                        const signUpData = await signUpRes.json();
+                        if (!signUpRes.ok) {
+                            const errMsg = signUpData.message || signUpData.msg || 'Unknown error';
+                            throw new Error('Account creation failed: ' + errMsg);
+                        }
+                        userId = signUpData.id;
                     }
-                    userId = signUpData.id;
+
+                    const teacherData = { id: userId, qualification, subject_specialization: specialization };
+                    if (teacherId) {
+                        await apiFetch(`teachers?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify(teacherData) });
+                    } else {
+                        await apiFetch('teachers', { method: 'POST', body: JSON.stringify(teacherData) });
+                    }
+
+                    await apiFetch(`profiles?id=eq.${userId}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ role: 'teacher', full_name: fullName, teacher_id_number: teacherIdNumber })
+                    });
+
+                    if (teacherId) await apiFetch(`teacher_classes?teacher_id=eq.${userId}`, { method: 'DELETE' });
+                    const assignments = selectedClasses.map(cid => ({ teacher_id: userId, class_id: cid }));
+                    if (assignments.length > 0) await apiFetch('teacher_classes', { method: 'POST', body: JSON.stringify(assignments) });
+
+                    closeTeacherModal(); loadModule('teachers');
+                } catch (err) {
+                    if (errorDiv) {
+                        errorDiv.textContent = err.message;
+                        errorDiv.style.display = 'block';
+                    } else {
+                        alert(err.message);
+                    }
+                } finally {
+                    submitBtn.disabled = false; submitBtn.textContent = 'Save';
                 }
-
-                const teacherData = { id: userId, qualification, subject_specialization: specialization };
-                if (teacherId) await apiFetch(`teachers?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify(teacherData) });
-                else await apiFetch('teachers', { method: 'POST', body: JSON.stringify(teacherData) });
-
-                await apiFetch(`profiles?id=eq.${userId}`, { method: 'PATCH', body: JSON.stringify({ role: 'teacher', full_name: fullName, teacher_id_number: teacherIdNumber }) });
-
-                if (teacherId) await apiFetch(`teacher_classes?teacher_id=eq.${userId}`, { method: 'DELETE' });
-                const assignments = selectedClasses.map(cid => ({ teacher_id: userId, class_id: cid }));
-                if (assignments.length) await apiFetch('teacher_classes', { method: 'POST', body: JSON.stringify(assignments) });
-
-                closeTeacherModal(); loadModule('teachers');
             }
         });
 
